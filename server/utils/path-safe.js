@@ -1,48 +1,52 @@
 // ============================================================
-// iwara-downloader - 路径安全（B1 修复，参照 gbmd utils/path-safe.js）
-// downloadRoots：收集可浏览/下载根（config downloadPath + aria2Path 本地前缀）
-// isWithinRoots：abs 是否在某根内（resolve + startsWith，防目录穿越/越权浏览）
-// isBrowsableDir：browse 白名单收敛（祖先 + 根 + 后代放行，其余 403）
+// iwara-downloader - 路径安全（B1 修复：系统关键目录黑名单）
+// 用户 2026-09-06 拍板：「📂 按钮 = 读取本地选择目录，实际只需要把各平台系统关键目录
+//   拉黑就行了，本身只是个局域网项目」——browse 用黑名单，不做白名单收敛。
+// isDeniedBrowseDir：命中系统关键目录（/etc /proc /sys /usr /Windows 等）→ 拒绝；
+//   其余路径可浏览（局域网自用场景，无下载根时也不限制）。
+// isWithinRoots：保留（download 侧防穿越用，本文件原始能力）。
 // ============================================================
 "use strict";
 
 const path = require("path");
 
-// iwara 的下载根：config.json 的 downloadPath（direct 后端本机路径；
-// aria2 后端路径在 aria2 机器上，本机 browse 不适用——只收敛 direct 场景）
-function downloadRoots(cfg) {
-  const c = cfg.readConfig();
-  const roots = [];
-  const dp = String(c.downloadPath || "").trim();
-  if (dp) roots.push(dp);
-  return roots;
-}
+// 系统关键目录黑名单（跨平台，含 POSIX + Windows）。
+// 匹配规则：resolve 后的绝对路径，小写比较，等于根或 startsWith 根+sep 即命中。
+// POSIX：/etc /proc /sys /dev /var /boot /root /run /sbin /bin /lib /lib64 /usr
+//        macOS 额外：/System /Library /Applications /private
+// Windows：各盘符的 \Windows \Program Files \Program Files (x86) \ProgramData \Recovery
+const DENY_ROOTS = [
+  // POSIX 系统目录
+  "/etc", "/proc", "/sys", "/dev", "/var", "/boot", "/root", "/run",
+  "/sbin", "/bin", "/lib", "/lib64", "/usr",
+  // macOS
+  "/system", "/library", "/applications", "/private",
+  // Windows（任意盘符）
+  ":\\windows", ":\\program files", ":\\program files (x86)", ":\\programdata", ":\\recovery"
+];
 
-function isWithinRoots(target, roots) {
-  const abs = path.resolve(String(target || ""));
-  return (roots || []).some((r) => {
-    const rr = path.resolve(String(r || ""));
-    return abs === rr || abs.startsWith(rr + path.sep);
-  });
-}
-
-// dir 是否在「下载根 + 祖先 + 后代」可浏览范围（B1：browse 收敛到下载根分支）。
-// 祖先放行：前端从 "/" 起步下钻到下载根；后代放行：在下载根内继续下钻选子目录。
-// 其余分支（/etc、/home 等与下载无关）一律不列、不可进。
-// 用 path.relative 判祖先/后代：相对结果非空且不以 ".." 开头即成立。规避 abs + path.sep
-// 在 abs="/"（根目录）时拼出 "//" 的边界错误（gbmd 原实现同样有此问题）。
-function isBrowsableDir(dir, roots) {
-  const list = roots || [];
-  if (!list.length) return true; // 无任何下载根时无法收敛，不限制
+// 黑名单是否命中：dir（绝对路径）的任一祖先/自身等于黑名单根
+function isDeniedBrowseDir(dir) {
   const abs = path.resolve(String(dir || ""));
-  return list.some((r) => {
-    const rr = path.resolve(String(r || ""));
-    if (abs === rr) return true;
-    const relToRoot = path.relative(abs, rr);
-    if (relToRoot !== "" && !relToRoot.startsWith("..") && !path.isAbsolute(relToRoot)) return true;
-    const relFromRoot = path.relative(rr, abs);
-    return relFromRoot !== "" && !relFromRoot.startsWith("..") && !path.isAbsolute(relFromRoot);
+  const low = abs.toLowerCase();
+  return DENY_ROOTS.some((root) => {
+    if (low === root) return true;
+    if (low.startsWith(root + path.sep)) return true;
+    // Windows 盘符匹配：把 "C:\windows" 这类盘符化根匹配掉
+    if (root.startsWith(":\\")) {
+      // 对每个盘符尝试：c:\windows 等
+      const drive = low.match(/^[a-z]:/);
+      if (!drive) return false;
+      const candidate = drive[0] + root;
+      return low === candidate || low.startsWith(candidate + "\\") || low.startsWith(candidate + path.sep);
+    }
+    return false;
   });
 }
 
-module.exports = { downloadRoots, isWithinRoots, isBrowsableDir };
+// 目录列表里要过滤的系统残留目录名（browse 列条目时用）
+function isSystemJunkName(name) {
+  return name === "@eaDir" || name === "#recycle" || name === ".git" || name === "System Volume Information";
+}
+
+module.exports = { isDeniedBrowseDir, isSystemJunkName };
