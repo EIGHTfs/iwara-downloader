@@ -1,0 +1,84 @@
+# 运行态 JSON 在仓库根 json/（清单 json/userdata-manifest.json 入库）
+json/*.json
+!json/userdata-manifest.json
+json/index/
+json/profile/
+avatar/
+json/index-sidecars/
+server/config.json
+server/sessions.json
+server/download_task.json
+server/search_cache.json
+server/search_task.json
+server/cdn_hosts_state.json
+server/following_cache.json
+server/iwara-index.json
+/userdata-manifest.json
+server/json/
+server/index-sidecars/
+server/thumbs/
+server/app.pid
+server/*.log
+server/*.bak-*
+*.pid
+*.log
+*.bak
+
+# 下载产物
+*.mp4
+*.webm
+*.mkv
+*.mov
+*.m4v
+*.flv
+*.part
+*.aria2
+
+# 本机凭据
+.git-push-token
+.git-credentials-local
+.github-credentials
+git_push_token.txt
+
+# 自带运行时（包装脚本入库，二进制/so 不入库）
+tool/node/
+tool/node-*.tar.xz
+tool/ffmpeg-bin
+tool/ffprobe-bin
+tool/ffmpeg-lib/
+
+# 零依赖：不写 package.json / lock
+package.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lock
+npm-debug.log*
+.npm/
+.pnpm-store/
+node_modules/
+dist/
+build/
+release/
+
+# 群晖 / 编辑器
+@eaDir/
+**/@eaDir/
+*.@SynoEAStream
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# 内部稿
+docs/iwara-downloader-server-开发者文档-20260901.md
+handoff-ui-template.html
+
+# 开发者文档不入库（公开库）。本地可留着，权威副本在 ai-work-archive/开发者文档/
+docs/*开发者文档*.md
+TROUBLESHOOTING.md
+
+# 重构进度看板（本地留底，不入库）
+docs/iwara-重构进度.md

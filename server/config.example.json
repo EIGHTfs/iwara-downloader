@@ -1,0 +1,22 @@
+{
+  "port": 8643,
+  "iwaraToken": "",
+  "iwaraCookie": "",
+  "iwaraCfgIp": "104.26.12.12",
+  "aria2Dns": "10.10.10.64",
+  "downloadBackend": "direct",
+  "concurrency": 3,
+  "aria2Path": "http://127.0.0.1:6800/jsonrpc",
+  "aria2Token": "",
+  "downloadPath": "/path/to/your/Iwara/",
+  "fileNameTemplate": "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]",
+  "useAuthorSubdir": false,
+  "showLikedInSearch": true,
+  "autoLike": false,
+  "autoFollow": false,
+  "passwordSalt": "",
+  "passwordHash": "",
+  "sessionHours": 72,
+  "checkDownloadLink": false,
+  "downloadToggles": { "video": true, "json": true }
+}
