@@ -82,3 +82,6 @@ TROUBLESHOOTING.md
 
 # 重构进度看板（本地留底，不入库）
 docs/iwara-重构进度.md
+
+# 安全删除回收站
+.trash/
