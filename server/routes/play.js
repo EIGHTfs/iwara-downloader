@@ -7,13 +7,27 @@
 "use strict";
 
 module.exports = function register(api) {
-  const {
-    route, routePublic, sendJson, cfg, videoIndex, thumbCache, profileIndex,
-    streamLocalVideo, playHint, requireAuth, path, fs
-  } = api;
+  const { route, routePublic } = api;
 
   // GET/HEAD /api/thumb（公开；列表/播放只读本地 thumbs/<id>.jpg，缺图入队下次有图）
-  routePublic(["GET", "HEAD"], "/api/thumb", (req, res, parsed) => {
+  routePublic(["GET", "HEAD"], "/api/thumb", thumb(api));
+
+  // GET /api/play-info（公开含 playPublic 检查）
+  route("GET", "/api/play-info", playInfo(api));
+
+  // GET/HEAD /api/play（公开含 playPublic 检查）
+  routePublic(["GET", "HEAD"], "/api/play", play(api));
+
+  // GET/HEAD /avatar/<uuid>/<uuid>.jpg（公开）
+  routePublic(["GET", "HEAD"], /^\/avatar\//, avatar(api));
+};
+
+// ---- 模块级 handler 工厂：接收 api 解构所需依赖，返回真正的 handler ----
+
+// GET/HEAD /api/thumb：只读本地 thumbs/<id>.jpg，缺图入队下次有图
+function thumb(api) {
+  const { thumbCache, videoIndex } = api;
+  return (req, res, parsed) => {
     const id = String(parsed.query.id || "").trim();
     const fileId = String(parsed.query.file || "").trim();
     const n = String(parsed.query.n || "0");
@@ -55,10 +69,13 @@ module.exports = function register(api) {
     if (img.mtimeMs) headers["Last-Modified"] = new Date(img.mtimeMs).toUTCString();
     res.writeHead(200, headers);
     return res.end(req.method === "HEAD" ? undefined : img.buf);
-  });
+  };
+}
 
-  // GET /api/play-info（公开含 playPublic 检查）
-  route("GET", "/api/play-info", (req, res, parsed) => {
+// GET /api/play-info：播放信息（含 playPublic 检查），播放只读已有封面
+function playInfo(api) {
+  const { sendJson, cfg, playHint, videoIndex, thumbCache, profileIndex, requireAuth, path } = api;
+  return (req, res, parsed) => {
     const id = String(parsed.query.id || "").trim();
     if (!id) return sendJson(res, 400, { ok: false, error: "缺 id" });
     // playPublic=true（默认）免登录播放；false 时需登录；未设密码 = 始终公开
@@ -98,10 +115,13 @@ module.exports = function register(api) {
       expected,
       ext: found && found.file ? path.extname(String(found.file).replace(/\.part$/i, "")).toLowerCase() : ""
     });
-  });
+  };
+}
 
-  // GET/HEAD /api/play（公开含 playPublic 检查）
-  routePublic(["GET", "HEAD"], "/api/play", (req, res, parsed) => {
+// GET/HEAD /api/play：本地视频流（含 playPublic 检查）
+function play(api) {
+  const { sendJson, cfg, playHint, videoIndex, streamLocalVideo, requireAuth } = api;
+  return (req, res, parsed) => {
     const id = String(parsed.query.id || "").trim();
     if (!id) return sendJson(res, 400, { ok: false, error: "缺 id" });
     { const _c = cfg.readConfig(); if (!_c.playPublic && _c.passwordHash && !requireAuth(req)) return sendJson(res, 401, { ok: false, error: "未登录" }); }
@@ -112,10 +132,13 @@ module.exports = function register(api) {
     const expected = hint.expected || found.size;
     const growing = expected > 0 && found.size > 0 && found.size < expected;
     return streamLocalVideo(req, res, found.file, { expected, partial: found.partial || growing });
-  });
+  };
+}
 
-  // GET/HEAD /avatar/<uuid>/<uuid>.jpg（公开）
-  routePublic(["GET", "HEAD"], /^\/avatar\//, (req, res, parsed) => {
+// GET/HEAD /avatar/<uuid>/<uuid>.jpg：项目根 avatar 目录头像（公开）
+function avatar(api) {
+  const { sendJson, profileIndex, fs } = api;
+  return (req, res, parsed) => {
     const pathname = String(parsed.pathname || "");
     const rel = pathname.slice("/avatar/".length);
     const m = rel.match(/^([0-9a-f-]{36})\/\1\.jpg$/i);
@@ -130,5 +153,5 @@ module.exports = function register(api) {
     });
     if (req.method === "HEAD") { res.end(); return; }
     fs.createReadStream(file).pipe(res);
-  });
-};
+  };
+}

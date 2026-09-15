@@ -1,7 +1,7 @@
 // 按当前文件名模板批量重命名已下载视频
-// 用户原话：「iwara 设置增加重命名文件功能类似 gbmd 的合并文件夹，将含 id 的视频但不是模板命名格式的扫描出来先预览，然后批量重命名」
-// 用户原话：「(1) 为什么没被扫描到，这不规范」——模板名后面多「 (1)」也算不规范，必须进预览。
-// 用户原话：「是不是意外实现去重了」——Linux rename 覆盖已有目标会丢文件；执行时目标已存在一律跳过。
+// 设置提供重命名功能：扫描含 id 但非模板命名格式的视频，先预览后批量重命名
+// 模板名后缀「 (1)」也算不规范，必须进预览
+// Linux rename 覆盖已有目标会丢文件；目标已存在一律跳过
 "use strict";
 
 const fs = require("fs");
@@ -29,7 +29,7 @@ function walkVideos(dir, out, depth) {
 }
 
 function extractId(filename, idSet) {
-  // 用户原话：「你妈的说id就只根据json文件」
+  // id 只依据 json 文件
   // 【错法】用方括号长度/形态猜 id，[Genshin_Impact] 被当成视频 id，(1) 副本扫不到。
   // 【改法】只认 json/index 总表里的 id；文件名方括号内容必须能在 idSet 里命中。
   const base = String(filename || "").replace(/\.[^.]+$/, "").replace(/ \(\d+\)$/, "");
@@ -163,7 +163,7 @@ function executePlan(dryRun, opts) {
   }
   opts = opts || {};
   const forceName = String(opts.forceFrom || "").trim();
-  // 用户原话：「目标已存在时点确认执行，给失败的任务单个加个强制执行，专门用于覆盖重复」
+  // 目标已存在时需手动确认执行；失败任务可单个强制覆盖
   // 批量默认不覆盖；forceFrom 只改这一条，允许覆盖已有目标。
   const rows = forceName
     ? scanned.plan.filter((row) => row.fromName === forceName)

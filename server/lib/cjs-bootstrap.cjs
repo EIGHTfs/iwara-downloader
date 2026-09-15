@@ -1,5 +1,5 @@
 // cjs-bootstrap.cjs —— 零依赖 CJS 强制（boot.cjs 与 test/ 共用）
-// 用户原话：「这个项目不需要packagejson文件」「零依赖nodejs项目禁止生成packagejson等」
+// 项目为零依赖 Node.js，禁止生成 package.json
 // 背景：父目录（DSH 检出根）package.json 是 "type":"module"，直接 node server/app.js
 //   会被当成 ESM 而 require 失效。禁止为此写本地 package.json；.cjs 永远是 CJS。
 //   只劫持本项目根内的 .js，项目外仍走 Node 原逻辑。

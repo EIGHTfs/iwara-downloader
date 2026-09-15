@@ -26,7 +26,10 @@ const DATA_DIR = jsonDir.SERVER_DIR;
 const JSON_DIR = jsonDir.JSON_DIR;
 
 const API_HOST = "api.iwara.tv";
-const X_VERSION_SECRET = "mSvL05GfEmeEmsEYfGCnVpEjYgTJraJN";
+// X-Version 签名密钥：SHA1(路径段_expires_密钥) 生成 X-Version 请求头，
+// 证明"我是官方客户端"（与 iwara 官网前端/油猴脚本同源，全客户端共享），
+// 非用户凭据——用户数据访问靠 Cookie/Bearer token。公开仓库可保留。
+const X_VERSION_SECRET = "mSvL05GfEmeEmsEYfGCnVpEjYgTJraJN"; // dsh-skip-sensitive
 // ⚠️ UA 必须不带 "AppleWebKit/537.36 (KHTML, like Gecko)" 片段！
 // 实测（2026-08）：完整 Chrome UA 被 CF 挑战拦截(403)，
 // 而精简 UA "Mozilla/5.0 ... Chrome/126.0.0.0 Safari/537.36" 直接放行(200/401)。
@@ -717,7 +720,7 @@ async function autoLikeFollow(info) {
  * @param {Object} q - { sort:'date'|'trending'|'views'|'rating', page, limit, user, subscribed, type, search, rating }
  */
 let lastListVideosAt = 0;
-const LIST_PAGE_INTERVAL_MS = 2000; // 用户原话：「iwara 搜索加上 2 秒一页的限制」
+const LIST_PAGE_INTERVAL_MS = 2000; // 搜索翻页限制：2 秒一页
 async function listVideos(q = {}) {
   // 翻页统一限速：任意 listVideos（关键词/按时间/作者页）间隔至少 2 秒
   if (lastListVideosAt) {

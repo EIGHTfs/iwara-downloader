@@ -1,6 +1,6 @@
 // 运行态 JSON 目录：仓库根 json/（不是 server/json/）
-// 用户原话：「都是运行态json，只许放服务端json文件夹」「而且不止这两个json文件是运行态」
-// 「config.json是例外本来就应该在server文件夹」
+// 运行态 json 只放服务端 json 文件夹（含除这两个外的其它运行态 json）
+// config.json是例外本来就应该在server文件夹
 // userdata-manifest.json 也在 json/
 "use strict";
 

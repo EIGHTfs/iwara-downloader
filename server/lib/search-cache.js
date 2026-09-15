@@ -17,7 +17,7 @@ const CACHE_FILE = jsonDir.migrateRuntimeJson("search_cache.json"); //userdata-m
 
 const MAX_PAGES = 80;
 const MAX_RESULTS = 2000;
-const PAGE_INTERVAL_MS = 2000; // 用户原话：搜索加上 2 秒一页的限制
+const PAGE_INTERVAL_MS = 2000; // 搜索间隔限制：2 秒一页
 
 let queryTask = null;
 let queryRunning = false;
@@ -192,7 +192,7 @@ async function doQueryLoop() {
         queryTask.results.push(v);
         profileIndex.upsertFromVideo(v).catch(function () {});
         // 2026-09-04：搜索时拉官方封面落到 thumbs/<id>.jpg。
-        // 用户原话：「搜索时，下载时从官方获取封面并按本地规范保存」
+        // 搜索/下载时从官方获取封面并按本地规范保存
         // 【思路】入队即 enqueue，不阻塞翻页；列表只读本地，封面到了刷新即可显示。
         thumbCache.enqueueOfficialThumb(v.id, v.file && v.file.id, v.thumbnail);
         if (queryTask.results.length >= MAX_RESULTS) break;
@@ -213,7 +213,7 @@ async function doQueryLoop() {
         break;
       }
       queryTask.page = page + 1;
-      // 用户原话：「iwara 搜索加上 2 秒一页的限制」
+      // 搜索翻页间隔限制：2 秒一页
       // 【原代码】await sleep(PAGE_INTERVAL_MS) 且 PAGE_INTERVAL_MS=400
       // 【改为】翻页间隔改到 listVideos 统一 2 秒，这里不再另睡，避免 2+2=4 秒
 
