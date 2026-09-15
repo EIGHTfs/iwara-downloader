@@ -2,8 +2,8 @@
 // data-backup.js —— 用户数据备份/恢复
 //   导出：扫源码 //userdata-manifest.json 注释自动生成清单 → zip
 //   导入：上传 zip → 按清单白名单校验路径 → 解压写回
-// 用户原话：「两个项目userdata-manifest.json都有问题，没有维护过，希望改成自动维护。
-//   方法就是生成读取json文件时代码旁注释//userdata-manifest.json，然后导出配置文件时自动生成userdata-manifest.json」
+// 两个项目的 userdata-manifest.json 原先未自动维护，改为自动生成维护。
+//   方法就是生成读取json文件时代码旁注释//userdata-manifest.json，然后导出配置文件时自动生成userdata-manifest.json
 // ============================================================
 "use strict";
 

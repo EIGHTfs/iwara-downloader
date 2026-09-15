@@ -27,7 +27,7 @@ const jsonDir = require("./json-dir");
 const CATALOG_NAME = "iwara-index.json";
 const DATA_DIR = jsonDir.SERVER_DIR;
 const JSON_DIR = jsonDir.JSON_DIR;
-// 用户原话：「索引放json/index/  包括总表和每个视频json」
+// 索引放 json/index/，含总表与每个视频的 json
 const INDEX_DIR = path.join(JSON_DIR, "index"); //userdata-manifest.json dir json/index .json 本机视频索引（总表 iwara-index.json + 每条 <id>.json）
 const SIDECAR_CACHE = INDEX_DIR;
 
@@ -319,7 +319,7 @@ function findExistingById(root, id) {
       if (e.name.indexOf(needle) < 0) continue;
       const full = path.join(dir, e.name);
       if (/\.(mp4|webm|mov|mkv|m4v)$/i.test(e.name)) return full;
-      // 用户原话：「没下载完的part文件我希望也能部分播放」
+      // 没下载完的 .part 文件也支持部分播放
       // AI 思路：按 id 扫目录时完整文件优先；没有完整文件才回 .part（含 m3u8/flv 等扩展）
       if (/\.(mp4|webm|mov|mkv|m4v|m3u8|m3u|ts|flv|mpd)\.part$/i.test(e.name)) part = full;
     }
@@ -437,8 +437,8 @@ function importPayload(root, raw) {
 // ═══════════════════════════════════════════════════════════════
 // listCatalog：视频列表 = JSON 文件里有的 ID + 视频文件必须存在
 // ═══════════════════════════════════════════════════════════════
-// 用户原话：「扫描设置的下载路径下所有 json 文件取到 id 用 id 去匹配封面，视频。
-//   不管视频名怎么变只要 id 对的上就能找到，找不到的视频直接不显示在视频列表」
+// 扫描下载路径下所有 json 取 id，用 id 匹配封面与视频；
+//   不管视频名怎么变，只要 id 对得上就能找到；找不到的视频不显示在视频列表
 //
 // AI 思路：之前 listCatalog 直接读 iwara-index.json 总表返回，
 //   不验证视频文件是否存在——总表有 ID 但视频被删/改名/没下完照样显示，点开播不了。
@@ -475,7 +475,7 @@ function listCatalog(root) {
       const videoFile = findExistingById(root, id);
       if (!videoFile) {
         // 没视频 → 跳过，不显示在列表
-        // 用户原话：「找不到的视频直接不显示在视频列表」
+        // 找不到的视频不显示在视频列表
         continue;
       }
       // ③ 有视频 → 用 sidecar 元数据，总表兜底补充

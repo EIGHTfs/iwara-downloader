@@ -149,7 +149,7 @@ function sanitizeFileName(name) {
  * @param {Object} info - getVideoInfo 返回的视频信息
  */
 function applyParsedName(item, info, c) {
-  // 【原代码】解析后只改 item.file，任务列表仍用入队时的 title/id。【改为】用户原话「任务列表里面显示的不是按解析后的名字」【思路】把 Iwara 标题和模板文件名写回任务项，进度页才能显示解析名
+  // 【原代码】解析后只改 item.file，任务列表仍用入队时的 title/id。【改为】任务列表显示解析后的名字。【思路】把 Iwara 标题与模板文件名写回任务项，进度页才能显示解析名
   if (info.title) item.title = info.title;
   if (info.author) item.author = info.author;
   if (info.alias) item.alias = info.alias;
@@ -252,6 +252,19 @@ function partBytes(partPath) {
  * 两个列表持久化到外部文件 cdn_hosts_state.json，随实际下载结果动态增删。
  * @returns {Promise<'done'|'retry'>}
  */
+// 下载请求头（断点续传 + Referer + 可选 Cookie）
+function buildIwaraHeaders(host, start) {
+  const headers = {
+    "User-Agent": api.DEFAULT_UA,
+    Accept: "*/*",
+    Referer: "https://www.iwara.tv/",
+    Range: `bytes=${start}-`
+  };
+  if (cfg.readConfig().iwaraCookie) headers["Cookie"] = cfg.readConfig().iwaraCookie;
+  return headers;
+}
+
+// 下载（断点续传，CDN 子域轮换重试）
 function downloadToFile(item, onProgress) {
   return new Promise((resolve, reject) => {
     const url = item.url;
@@ -261,111 +274,110 @@ function downloadToFile(item, onProgress) {
 
     // 候选子域（动态）：原始子域 → GOOD 成功列表（新→旧）→ 种子（未失败过）
     const candidates = cdnCandidates(u0.hostname);
-    let ci = 0;
-
-    const attempt = () => {
-      if (ci >= candidates.length) return reject(new Error("所有 CDN 子域均失败（403/超时）"));
-      const host = candidates[ci++];
-      const headers = {
-        "User-Agent": api.DEFAULT_UA,
-        Accept: "*/*",
-        Referer: "https://www.iwara.tv/",
-        Range: `bytes=${start}-`
-      };
-      if (cfg.readConfig().iwaraCookie) headers["Cookie"] = cfg.readConfig().iwaraCookie;
-
-      const req = https.request(
-        {
-          host: api.getCfIp(),
-          port: u0.port || 443,
-          path: u0.pathname + u0.search,
-          method: "GET",
-          headers: Object.assign({ Host: host }, headers),
-          agent: HTTPS_AGENT,
-          servername: host
-        },
-        (res) => {
-          // 206 = 断点续传；200 = 重新开始（服务器不支持 Range）
-          if (res.statusCode === 403 || res.statusCode === 404 || (res.statusCode !== 200 && res.statusCode !== 206)) {
-            res.resume();
-            cdnMarkFail(host); // 失败 → 写入 BAD 列表
-            if (item._halt) return reject(new Error(item._halt === "paused" ? "PAUSED" : "STOPPED"));
-            if (ci < candidates.length) {
-              console.log(`[downloader] ${host} → HTTP ${res.statusCode}，换子域重试 (${ci}/${candidates.length})`);
-              return attempt();
-            }
-            return reject(new Error(`HTTP ${res.statusCode}（${host}）`));
-          }
-          // 若服务器返回 200（无视 Range），从头写
-          const writeStart = res.statusCode === 206 ? start : 0;
-          const mode = writeStart > 0 ? "a" : "w";
-          let done = writeStart;
-          const stream = fs.createWriteStream(tmpFile, { flags: mode });
-          res.on("data", (c) => {
-            if (item._halt) {
-              try { req.destroy(new Error(item._halt === "paused" ? "PAUSED" : "STOPPED")); } catch (_) {}
-              return;
-            }
-            done += c.length;
-            if (item.total) item.doneBytes = done - writeStart + (item.baseBytes || 0);
-            const now = Date.now();
-            if (!item._spT) { item._spT = now; item._spLast = done; }
-            else {
-              const dt = (now - item._spT) / 1000;
-              if (dt >= 0.5) {
-                item.speed = Math.max(0, (done - item._spLast) / dt);
-                item._spT = now;
-                item._spLast = done;
-              }
-            }
-            if (onProgress) onProgress({ done, total: item.total });
-          });
-          res.pipe(stream);
-          stream.on("finish", () => {
-            // 校验：若已到达或超过总大小则完成（无法精确校验时以 HTTP 结束为准）
-            // 2026-09-04 修改：.part 被删时 renameSync 抛 ENOENT 未捕获，整个进程退出。
-            // 【原代码】fs.renameSync(tmpFile, item.savePath);
-            // 【改为】实测清测试 .part 时进程崩：Error ENOENT rename ...mp4.part。用户原话「功能都要你实际测试通过」。
-            // 【思路】finish 时先 existsSync；没有就当任务被停/文件被清，reject 给单条失败，不拖死服务。
-            try {
-              if (!fs.existsSync(tmpFile)) {
-                return reject(new Error("临时文件已消失（下载被停止或 .part 被删除）"));
-              }
-              fs.renameSync(tmpFile, item.savePath);
-              cdnMarkSuccess(host); // 成功 → 写入 GOOD 列表
-              liveReqs.delete(item.id);
-              resolve("done");
-            } catch (e) {
-              reject(e);
-            }
-          });
-          stream.on("error", (e) => reject(e));
-          req.on("error", (e) => reject(e));
-        }
-      );
-      liveReqs.set(item.id, req);
-      req.setTimeout(30000, () => {
-        try {
-          req.destroy(new Error("连接超时"));
-        } catch (_) {}
-      });
-      req.on("error", (e) => {
-        liveReqs.delete(item.id);
-        const halt = haltReason(item, e);
-        if (halt) return reject(new Error(halt));
-        // 连接级错误（socket hang up / ECONNRESET 等）→ 换子域重试
-        cdnMarkFail(host);
-        if (ci < candidates.length) {
-          console.log(`[downloader] ${host} → ${String(e.message).slice(0, 40)}，换子域重试`);
-          return attempt();
-        }
-        reject(e);
-      });
-      req.end();
-    };
-
-    attempt();
+    const state = { ci: 0, start, tmpFile, u0, candidates, item, onProgress };
+    attemptIwaraUrl(state, resolve, reject);
   });
+}
+
+// 尝试一个 CDN 子域；失败按状态码决定换下一个子域重试（递归）
+function attemptIwaraUrl(state, resolve, reject) {
+  const { candidates, u0, item, tmpFile } = state;
+  if (state.ci >= candidates.length) return reject(new Error("所有 CDN 子域均失败（403/超时）"));
+  const host = candidates[state.ci++];
+  const headers = buildIwaraHeaders(host, state.start);
+
+  const req = https.request(
+    {
+      host: api.getCfIp(),
+      port: u0.port || 443,
+      path: u0.pathname + u0.search,
+      method: "GET",
+      headers: Object.assign({ Host: host }, headers),
+      agent: HTTPS_AGENT,
+      servername: host
+    },
+    (res) => {
+      // 206 = 断点续传；200 = 重新开始（服务器不支持 Range）
+      if (res.statusCode === 403 || res.statusCode === 404 || (res.statusCode !== 200 && res.statusCode !== 206)) {
+        res.resume();
+        cdnMarkFail(host); // 失败 → 写入 BAD 列表
+        if (item._halt) return reject(new Error(item._halt === "paused" ? "PAUSED" : "STOPPED"));
+        if (state.ci < candidates.length) {
+          console.log(`[downloader] ${host} → HTTP ${res.statusCode}，换子域重试 (${state.ci}/${candidates.length})`);
+          return attemptIwaraUrl(state, resolve, reject);
+        }
+        return reject(new Error(`HTTP ${res.statusCode}（${host}）`));
+      }
+      // 若服务器返回 200（无视 Range），从头写
+      const writeStart = res.statusCode === 206 ? state.start : 0;
+      pipeIwaraResponse(res, req, host, state, writeStart, resolve, reject);
+    }
+  );
+  liveReqs.set(item.id, req);
+  req.setTimeout(30000, () => {
+    try {
+      req.destroy(new Error("连接超时"));
+    } catch (_) {}
+  });
+  req.on("error", (e) => {
+    liveReqs.delete(item.id);
+    const halt = haltReason(item, e);
+    if (halt) return reject(new Error(halt));
+    // 连接级错误（socket hang up / ECONNRESET 等）→ 换子域重试
+    cdnMarkFail(host);
+    if (state.ci < candidates.length) {
+      console.log(`[downloader] ${host} → ${String(e.message).slice(0, 40)}，换子域重试`);
+      return attemptIwaraUrl(state, resolve, reject);
+    }
+    reject(e);
+  });
+  req.end();
+}
+
+// 把响应流写入 .part：进度上报 + finish 校验（临时文件消失不拖死进程）
+function pipeIwaraResponse(res, req, host, state, writeStart, resolve, reject) {
+  const { item, tmpFile } = state;
+  const mode = writeStart > 0 ? "a" : "w";
+  let done = writeStart;
+  const stream = fs.createWriteStream(tmpFile, { flags: mode });
+  res.on("data", (c) => {
+    if (item._halt) {
+      try { req.destroy(new Error(item._halt === "paused" ? "PAUSED" : "STOPPED")); } catch (_) {}
+      return;
+    }
+    done += c.length;
+    if (item.total) item.doneBytes = done - writeStart + (item.baseBytes || 0);
+    const now = Date.now();
+    if (!item._spT) { item._spT = now; item._spLast = done; }
+    else {
+      const dt = (now - item._spT) / 1000;
+      if (dt >= 0.5) {
+        item.speed = Math.max(0, (done - item._spLast) / dt);
+        item._spT = now;
+        item._spLast = done;
+      }
+    }
+    if (state.onProgress) state.onProgress({ done, total: item.total });
+  });
+  res.pipe(stream);
+  stream.on("finish", () => {
+    // 校验：若已到达或超过总大小则完成（无法精确校验时以 HTTP 结束为准）
+    // 2026-09-04 修改：.part 被删时 renameSync 抛 ENOENT 未捕获，整个进程退出。
+    // 【思路】finish 时先 existsSync；没有就当任务被停/文件被清，reject 给单条失败，不拖死服务。
+    try {
+      if (!fs.existsSync(tmpFile)) {
+        return reject(new Error("临时文件已消失（下载被停止或 .part 被删除）"));
+      }
+      fs.renameSync(tmpFile, item.savePath);
+      cdnMarkSuccess(host); // 成功 → 写入 GOOD 列表
+      liveReqs.delete(item.id);
+      resolve("done");
+    } catch (e) {
+      reject(e);
+    }
+  });
+  stream.on("error", (e) => reject(e));
+  req.on("error", (e) => reject(e));
 }
 
 function aria2LocalRpc() {
@@ -420,7 +432,7 @@ function aria2Rpc(method, params, opts) {
           } catch (e) {
             const snippet = String(d || "").replace(/\s+/g, " ").slice(0, 80);
             const local = aria2LocalRpc();
-            // 用户原话：「theenjoyerkk · aria2 返回非 JSON」——群晖 CGI 常回空/HTML，本机 6800 才是 JSON。
+            // 问题：theenjoyerkk · aria2 返回非 JSON——群晖 CGI 常回空/HTML，本机 6800 才是 JSON。
             if (!opts.noFallback && endpoint !== local) {
               console.warn("[downloader] aria2 CGI 非 JSON HTTP " + res.statusCode + "，改走 " + local + (snippet ? " 片段:" + snippet : ""));
               return resolve(aria2Rpc(method, params, { endpoint: local, noFallback: true }));
@@ -526,7 +538,7 @@ async function aria2Add(item) {
   options["max-connection-per-server"] = "4";
   options.split = "4";
   options["allow-overwrite"] = "false";
-  // 2026-09-04：禁 IPv6。用户原话里失败原因 Failed to connect to the host 2001::a27d:108 Network is unreachable。
+  // 2026-09-04：禁 IPv6。失败原因：Failed to connect to the host 2001::a27d:108 Network is unreachable。
   // 【思路】群晖 aria2 会解析出 AAAA，本机 IPv6 不通；强制 IPv4。
   options["disable-ipv6"] = "true";
   // 关键：aria2 默认 UA 是 aria2/1.37.0，Cloudflare 会 403 拦截；
@@ -546,7 +558,7 @@ async function aria2Add(item) {
 
 
 // 2026-09-03：aria2 实时进度。
-// 用户原话：「aria2 本身提供了完善的 RPC 接口，要实现实时监控，主要有监听事件和轮询查询这两种方式。」
+// aria2 本身提供了完善的 RPC 接口，要实现实时监控，主要有监听事件和轮询查询这两种方式。
 // 【原代码】addUri 后 item.state=submitted、progress=100，进度页看不到真实下载。
 // 【改为】记下 gid；本机 ws://127.0.0.1:6800/jsonrpc 收 onDownload* 事件；每秒 tellStatus 补进度。
 // 【思路】群晖套件 RPC 代理是 HTTPS CGI，WebSocket 不稳；本机 6800 已实测 WS 可 getVersion。事件负责完成/失败，轮询负责 total/completed/speed。
@@ -806,7 +818,7 @@ function ensureAria2Monitor() {
 // ---------- 任务循环 ----------
 // 2026-09-03 修改：node 直连下载做成真实并发（对照 gbmd produce/consume）。
 // 【原代码】runDownloadLoop 单 while + await downloadToFile，activeDownloads 永远最多 1。
-// 【改为】用户原话「iwara node下载模式实际无并发，且任务会在下载列表名字闪来闪去，对比 gamebanana-mods-downloader-server 找出原因」
+// 【改为】iwara node 下载模式实际无并发，且任务名在下载列表闪动——对比 gamebanana-mods-downloader-server 找根因
 // 【思路】gbmd 用 N 个 consume() 并行 executeDownloadItem；iwara 这边把「解析直链 + 下载」拆成 processOneItem，
 //   启动 min(concurrency, pending) 个 worker。列表闪名是因为 applyParsedName 改 title/file 后前端 1.5s 全量 innerHTML 重绘，
 //   下一提交单独修渲染；本提交只修并发，让配置的 concurrency 真正同时跑。
@@ -826,6 +838,7 @@ function shouldHaltItem(item) {
   return false;
 }
 
+// 单个下载项处理：aria2 或 HTTP(CDN 轮换) 两种后端，失败进重试/失败状态机
 async function processOneItem(item) {
   const c = cfg.readConfig();
   try {
@@ -833,119 +846,132 @@ async function processOneItem(item) {
     saveTask();
     if (shouldHaltItem(item)) return;
 
+    const info = await prepareVideoInfo(item, c);
     if (c.downloadBackend === "aria2") {
-      const info = await api.getVideoInfo(item.id);
-      applyParsedName(item, info, c);
-      profileIndex.upsertFromInfo(info).catch(function () {});
-      item.url = info.downloadUrl;
-      if (info.file && info.file.size) item.total = info.file.size;
-      if (!item.url) throw new Error("无法获取下载链接: " + (info.error || "未知"));
-      await api.autoLikeFollow(info);
-      const toggles = cfg.normalizeDownloadToggles(c.downloadToggles);
-      if (toggles.video) {
-        if (shouldHaltItem(item)) return;
-        try {
-          const gid = await aria2Add(item);
-          item.aria2Gid = gid;
-          item.state = "downloading";
-          item.progress = 0;
-          item.error = "";
-          ensureAria2Monitor();
-        } catch (e) {
-          if (isAria2Duplicate(e && e.aria2Code, e && e.message)) {
-            markSkipped(item, "Aria2 重复任务，跳过");
-            return;
-          }
-          throw e;
-        }
-      } else {
-        item.error = "已跳过视频（设置未勾选）";
-        item.state = "skipped";
-        item.progress = 100;
-        task.completed++;
-      }
-      const packed = videoIndex.fromDownload(info, item);
-      if (packed && toggles.json) {
-        try {
-          await aria2AddIndexJson(videoIndex.sidecarFileName(item.file), packed.id, packed.entry);
-        } catch (e) {
-          console.error("[downloader] 索引 JSON 推送 aria2 失败:", e && e.message || e);
-        }
-      }
-      if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item, { writeSidecar: false });
-      return;
-    }
-
-    const info = await api.getVideoInfo(item.id);
-    applyParsedName(item, info, c);
-    profileIndex.upsertFromInfo(info).catch(function () {});
-    item.url = info.downloadUrl;
-    if (info.file && info.file.size) item.total = info.file.size;
-    if (!item.url) throw new Error("无法获取下载链接: " + (info.error || "未知"));
-    await api.autoLikeFollow(info);
-    const authorDir = c.useAuthorSubdir ? sanitizeFileName(info.author || item.author || "unknown") : "";
-    item.savePath = authorDir ? safeJoin(c.downloadPath, path.join(authorDir, item.file)) : safeJoin(c.downloadPath, item.file);
-    fs.mkdirSync(path.dirname(item.savePath), { recursive: true });
-    const toggles = cfg.normalizeDownloadToggles(c.downloadToggles);
-    if (!toggles.video) {
-      item.state = "done";
-      item.progress = 100;
-      item.error = "已跳过视频（设置未勾选）";
-      task.completed++;
-      if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item, { writeSidecar: true, sidecarOnly: true });
-      return;
-    }
-    if (localFileExists(item.savePath)) {
-      markSkipped(item, "文件已存在，跳过");
-      return;
-    }
-    if (shouldHaltItem(item)) return;
-    const result = await downloadToFile(item, (p) => {
-      item.doneBytes = p.done;
-      item.progress = item.total ? Math.min(99, Math.round((p.done / item.total) * 100)) : 0;
-      saveTask();
-    });
-    if (result === "done") {
-      item.state = "done";
-      item.progress = 100;
-      item.doneBytes = item.total || 0;
-      task.completed++;
-      if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item);
-      await thumbCache.ensureFromInfo(item.id, info, item.savePath);
+      await runAria2Download(item, c, info);
+    } else {
+      await runHttpDownload(item, c, info);
     }
   } catch (e) {
-    const halt = haltReason(item, e);
-    // 用户原话：「任务列表的暂停，继续，终止不好用」——暂停/终止不能记成失败去重试
-    if (halt === "PAUSED") {
-      item.state = "paused";
-      item.error = "已暂停";
-      item._halt = "";
-      liveReqs.delete(item.id);
-      return;
-    }
-    if (halt === "STOPPED") {
-      item.state = "stopped";
-      item.error = "已终止";
-      item._halt = "";
-      liveReqs.delete(item.id);
-      return;
-    }
-    item.error = String(e.message || e);
-    item.retries = (item.retries || 0) + 1;
-    if (item.retries <= MAX_RETRY && task.status === "running") {
-      // 重试等待中不设 pending，避免其他 worker 抢走同一项
-      item.state = "retry-wait";
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * item.retries));
-      if (task.status === "running") item.state = "pending";
-      else item.state = "failed";
-    } else {
-      item.state = "failed";
-      task.failed++;
-    }
+    await handleItemError(item, e);
   } finally {
     liveReqs.delete(item.id);
     if (activeDownloads > 0) activeDownloads--;
     saveTask();
+  }
+}
+
+// 拉取视频信息并应用到 item（url/total/名称）——两种后端共用
+async function prepareVideoInfo(item, c) {
+  const info = await api.getVideoInfo(item.id);
+  applyParsedName(item, info, c);
+  profileIndex.upsertFromInfo(info).catch(function () {});
+  item.url = info.downloadUrl;
+  if (info.file && info.file.size) item.total = info.file.size;
+  if (!item.url) throw new Error("无法获取下载链接: " + (info.error || "未知"));
+  await api.autoLikeFollow(info);
+  return info;
+}
+
+// aria2 后端：提交任务 + 索引 JSON 推送 + 记录
+async function runAria2Download(item, c, info) {
+  const toggles = cfg.normalizeDownloadToggles(c.downloadToggles);
+  if (toggles.video) {
+    if (shouldHaltItem(item)) return;
+    try {
+      const gid = await aria2Add(item);
+      item.aria2Gid = gid;
+      item.state = "downloading";
+      item.progress = 0;
+      item.error = "";
+      ensureAria2Monitor();
+    } catch (e) {
+      if (isAria2Duplicate(e && e.aria2Code, e && e.message)) {
+        markSkipped(item, "Aria2 重复任务，跳过");
+        return;
+      }
+      throw e;
+    }
+  } else {
+    item.error = "已跳过视频（设置未勾选）";
+    item.state = "skipped";
+    item.progress = 100;
+    task.completed++;
+  }
+  const packed = videoIndex.fromDownload(info, item);
+  if (packed && toggles.json) {
+    try {
+      await aria2AddIndexJson(videoIndex.sidecarFileName(item.file), packed.id, packed.entry);
+    } catch (e) {
+      console.error("[downloader] 索引 JSON 推送 aria2 失败:", e && e.message || e);
+    }
+  }
+  if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item, { writeSidecar: false });
+}
+
+// HTTP 后端：计算保存路径 → 已存在跳过 → 下载 → 完成收尾（索引/缩略图）
+async function runHttpDownload(item, c, info) {
+  const authorDir = c.useAuthorSubdir ? sanitizeFileName(info.author || item.author || "unknown") : "";
+  item.savePath = authorDir ? safeJoin(c.downloadPath, path.join(authorDir, item.file)) : safeJoin(c.downloadPath, item.file);
+  fs.mkdirSync(path.dirname(item.savePath), { recursive: true });
+  const toggles = cfg.normalizeDownloadToggles(c.downloadToggles);
+  if (!toggles.video) {
+    item.state = "done";
+    item.progress = 100;
+    item.error = "已跳过视频（设置未勾选）";
+    task.completed++;
+    if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item, { writeSidecar: true, sidecarOnly: true });
+    return;
+  }
+  if (localFileExists(item.savePath)) {
+    markSkipped(item, "文件已存在，跳过");
+    return;
+  }
+  if (shouldHaltItem(item)) return;
+  const result = await downloadToFile(item, (p) => {
+    item.doneBytes = p.done;
+    item.progress = item.total ? Math.min(99, Math.round((p.done / item.total) * 100)) : 0;
+    saveTask();
+  });
+  if (result === "done") {
+    item.state = "done";
+    item.progress = 100;
+    item.doneBytes = item.total || 0;
+    task.completed++;
+    if (toggles.json) await videoIndex.recordDownload(c.downloadPath, info, item);
+    await thumbCache.ensureFromInfo(item.id, info, item.savePath);
+  }
+}
+
+// 异常处理：暂停/终止不重试；普通失败进重试等待（指数退避）或最终失败
+async function handleItemError(item, e) {
+  const halt = haltReason(item, e);
+  // 暂停/终止不能记成失败去重试
+  if (halt === "PAUSED") {
+    item.state = "paused";
+    item.error = "已暂停";
+    item._halt = "";
+    liveReqs.delete(item.id);
+    return;
+  }
+  if (halt === "STOPPED") {
+    item.state = "stopped";
+    item.error = "已终止";
+    item._halt = "";
+    liveReqs.delete(item.id);
+    return;
+  }
+  item.error = String(e.message || e);
+  item.retries = (item.retries || 0) + 1;
+  if (item.retries <= MAX_RETRY && task.status === "running") {
+    // 重试等待中不设 pending，避免其他 worker 抢走同一项
+    item.state = "retry-wait";
+    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * item.retries));
+    if (task.status === "running") item.state = "pending";
+    else item.state = "failed";
+  } else {
+    item.state = "failed";
+    task.failed++;
   }
 }
 
@@ -1050,7 +1076,7 @@ async function startDownloadTask(items) {
   const root = c.downloadPath;
   if (!root) throw new Error("请先在设置中配置下载路径");
 
-  // 【原代码】每次入队用新 list 整表替换 task.items，旧任务从进度页消失。【改为】用户原话「任务列表改成不会被自动移除，只能手动移除（不删除文件）」【思路】按 id 合并追加；进行中的不重置
+  // 【原代码】每次入队用新 list 整表替换 task.items，旧任务从进度页消失。【改为】任务列表不被自动移除，只能手动移除（不删文件）。【思路】按 id 合并追加；进行中的不重置
   if (!Array.isArray(task.items)) task.items = [];
   let added = 0;
   let resumed = 0;
@@ -1073,7 +1099,7 @@ async function startDownloadTask(items) {
   }
   // 2026-09-04：aria2 入队后任务列表也要有封面。
   // 【原代码】要等 worker getVideoInfo → applyParsedName 才 saveOfficialThumb；列表先 /api/thumb 404 把 <img> display:none。
-  // 【改为】用户原话「推送aria2下载模式，任务列表没有封面」
+  // 【改为】aria2 下载模式下任务列表缺封面
   // 【思路】入队立刻按 id 拉官方封面落到 thumbs/<id>.jpg（有 fileId 更好，没有就 getThumbMeta）。并发 2。
   for (const it of items) {
     const id = String(it.id || "").trim();
@@ -1181,7 +1207,7 @@ async function stopItem(id) {
 }
 
 async function pauseTask(id) {
-  // 用户原话：「任务列表的暂停，继续，终止不好用（点了暂停，无法继续也无法终止按钮没及时切换状态）且没有单条任务的暂停继续」
+  // 暂停/继续/终止按钮状态切换不及时，且缺单条任务的暂停/继续
   // 【原代码】只改 task.status=paused，直连 HTTP 不停；aria2.pause 不 await；前端不即时刷新。
   // 【改为】有 id 只暂停这一条；全局暂停 abort 直连 + await aria2.pause，状态立刻 paused。
   if (id) return pauseItem(id);
@@ -1225,7 +1251,7 @@ async function resumeTask(id) {
 }
 
 async function stopTask(id) {
-  // 用户原话：「也不能通过终止」——终止必须真正掐掉直连请求并从 aria2 拿掉。
+  // 终止必须真正掐掉直连请求并从 aria2 移除任务。
   if (id) return stopItem(id);
   const jobs = [];
   for (const it of task.items || []) {

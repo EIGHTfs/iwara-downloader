@@ -160,7 +160,7 @@ function bindBatch() {
 }
 
 function bindProgress() {
-  // 用户原话：「点了暂停，无法继续也无法终止按钮没及时切换状态」
+  // 暂停后无法继续/终止，按钮状态未及时切换
   // 【原代码】pause/resume/stop 只 POST，等 1.5s 轮询才改按钮。
   // 【改为】点完立刻拉 /api/task 重绘，对照 gbmd refreshTask。
   async function refreshTask() {
@@ -250,7 +250,7 @@ function bindProgress() {
       const r = await api("/api/task/remove-item", "POST", { id });
       // 2026-09-04：下载完单项从列表拿掉，文案叫「移除」不是「跳过」。
       // 【原代码】showFeedback("已跳过（文件仍在）") / "跳过失败"
-      // 【改为】用户原话「下载完单项移除列表描述错误，现在叫跳过，改叫移除」
+      // 【改为】完成项移除描述错误：原「跳过」改为「移除」
       // 【思路】接口仍是 /api/task/remove-item，不删文件；只改按钮和反馈文案。
       if (r && r.ok) showFeedback("已移除（文件仍在）", "ok");
       else showFeedback((r && r.error) || "移除失败", "err");
@@ -355,7 +355,7 @@ function startTaskPoll() {
 
 function rowDisplayName(it) {
   // 2026-09-03：列表闪名根因之一是 displayName = file || title || id，解析中途 title/file 轮换。
-  // 用户原话「任务会在下载列表名字闪来闪去」。稳定优先级：已解析模板文件名 > 标题 > id。
+  // 任务名在列表闪动。稳定优先级：已解析模板文件名 > 标题 > id。
   const id = String(it.id || "");
   const file = String(it.file || "");
   const title = String(it.title || "");
@@ -381,10 +381,27 @@ function ensureTaskRow(listEl, it) {
 
 function renderTask(task) {
   // 2026-09-03 修改：任务列表按行更新，不再每 1.5s innerHTML 整表重绘。
-  // 【原代码】$("#taskList").innerHTML = listHtml.join("")
-  // 【改为】用户原话「任务会在下载列表名字闪来闪去，对比 gamebanana-mods-downloader-server 找出原因」
   // 【思路】gbmd 有指纹缓存避免无变化重绘；iwara 这边名字闪是因为 applyParsedName 改 title/file 后整表销毁重建。
   //   按 data-task-id 复用行，只改进度/状态/稳定文件名。
+  const items = renderTaskHeader(task);
+  if (!items || !items.length) return;
+
+  const now = Date.now();
+  const listEl = $("#taskList");
+  if (listEl.querySelector(".empty")) listEl.innerHTML = "";
+  const seen = new Set();
+  for (const it of items) {
+    if (!it.id) continue;
+    seen.add(it.id);
+    renderTaskRow(listEl, it, now);
+  }
+  Array.from(listEl.querySelectorAll("[data-task-id]")).forEach((el) => {
+    if (!seen.has(el.getAttribute("data-task-id"))) el.remove();
+  });
+}
+
+// 任务头部：状态/进度/meta/按钮禁用；无任务返回 null，有任务返回 items
+function renderTaskHeader(task) {
   const stateText = { running: "下载中", idle: "空闲", paused: "已暂停" };
   $("#taskState").textContent = task ? (stateText[task.status] || task.status) : "无任务";
   updateSpeedHud(task);
@@ -398,7 +415,7 @@ function renderTask(task) {
     $("#retryBtn").disabled = true;
     if ($("#clearFailBtn")) $("#clearFailBtn").disabled = true;
     if ($("#clearDoneBtn")) $("#clearDoneBtn").disabled = true;
-    return;
+    return null;
   }
   const items = task.items || [];
   const doneN = items.filter((it) => it.state === "done" || it.state === "skipped" || it.state === "submitted").length;
@@ -412,117 +429,128 @@ function renderTask(task) {
   $("#retryBtn").disabled = failN === 0;
   if ($("#clearFailBtn")) $("#clearFailBtn").disabled = failN === 0;
   if ($("#clearDoneBtn")) $("#clearDoneBtn").disabled = doneN === 0;
+  return items;
+}
 
-  const now = Date.now();
-  const listEl = $("#taskList");
-  if (listEl.querySelector(".empty")) listEl.innerHTML = "";
-  const seen = new Set();
-  for (const it of items) {
-    if (!it.id) continue;
-    seen.add(it.id);
-    const bytes = it.doneBytes || 0;
-    let speedStr = "";
-    if (it.state === "downloading") {
-      const prev = lastBytes.get(it.id);
-      if (prev && now > prev.t) {
-        const sp = (bytes - prev.bytes) / ((now - prev.t) / 1000);
-        speedStr = fmtSpeed(sp);
-      }
-      lastBytes.set(it.id, { t: now, bytes });
+// 单行更新：图标/名称/进度条/缩略图/操作按钮/状态文本（复用已有行）
+function renderTaskRow(listEl, it, now) {
+  const bytes = it.doneBytes || 0;
+  let speedStr = "";
+  if (it.state === "downloading") {
+    const prev = lastBytes.get(it.id);
+    if (prev && now > prev.t) {
+      const sp = (bytes - prev.bytes) / ((now - prev.t) / 1000);
+      speedStr = fmtSpeed(sp);
     }
-    const icon = it.state === "done" || it.state === "skipped" || it.state === "submitted" ? "✅"
-      : (it.state === "failed" || it.state === "error" ? "❌" : (it.state === "downloading" ? "⬇" : "•"));
-    const cls = it.state === "failed" || it.state === "error" ? "fail" : (it.state === "downloading" ? "" : "ok");
-    const barCls = it.state === "failed" || it.state === "error" ? "row-bar-fail"
-      : (it.state === "downloading" ? "row-bar-active"
-        : (it.state === "done" || it.state === "skipped" || it.state === "submitted" ? "row-bar-ok" : "row-bar-pending"));
-    const p = Math.max(0, Math.min(100, it.progress || 0));
-    const displayName = rowDisplayName(it);
-    const meta = [it.author, speedStr, it.error].filter(Boolean).join(" · ");
-    const row = ensureTaskRow(listEl, it);
-    row.className = "item " + cls;
-    let thumb = row.querySelector(".row-thumb");
-    const thumbUrl = "/api/thumb?id=" + encodeURIComponent(it.id);
-    function bindThumbRetry(img) {
-      img.onerror = function () {
-        var n = Number(this.dataset.try || 0) + 1;
-        this.dataset.try = String(n);
-        var el = this;
-        var wait = n < 8 ? 400 * n : 2000;
-        setTimeout(function () { el.style.display = ""; el.src = thumbUrl + "&r=" + Date.now(); }, wait);
-      };
-      img.onload = function () { this.style.display = ""; this.dataset.try = "0"; };
-    }
-    if (thumb && thumb.tagName !== "IMG") {
-      const img = document.createElement("img");
-      img.className = "row-thumb";
-      img.alt = "";
-      img.loading = "lazy";
-      bindThumbRetry(img);
-      img.src = thumbUrl;
-      row.replaceChild(img, thumb);
-      thumb = img;
-    } else if (thumb && thumb.tagName === "IMG" && thumb.style.display === "none") {
-      bindThumbRetry(thumb);
-      thumb.style.display = "";
-      thumb.src = thumbUrl + "&r=" + Date.now();
-    }
-    const iconEl = row.querySelector(".icon");
-    if (iconEl) iconEl.textContent = icon;
-    let nameEl = row.querySelector(".item-name");
-    if (nameEl) {
-      let bar = nameEl.querySelector(".row-bar");
-      if (!bar) {
-        nameEl.textContent = displayName;
-        bar = document.createElement("span");
-        bar.innerHTML = '<span class="row-bar-fill" style="width:0%"></span>';
-        nameEl.appendChild(bar);
-      } else if (nameEl.firstChild && nameEl.firstChild.nodeType === 3) {
-        if (nameEl.firstChild.textContent !== displayName) nameEl.firstChild.textContent = displayName;
-      } else {
-        nameEl.insertBefore(document.createTextNode(displayName), bar);
-      }
-      bar.className = "row-bar " + barCls;
-      const fill = bar.querySelector(".row-bar-fill");
-      if (fill) fill.style.width = p + "%";
-    }
-    let actBtns = "";
-    if (it.id) {
-      actBtns += '<a class="mm-play-btn" href="/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener" title="本地播放">▶ 播放</a>';
-    }
-    // 用户原话：「且没有单条任务的暂停继续，也不能通过终止」
-    if (it.id && it.state === "downloading") {
-      actBtns += '<button type="button" class="mm-pause-btn" data-id="' + esc(it.id) + '" title="暂停这一条">⏸ 暂停</button>' +
-        '<button type="button" class="mm-stop-btn" data-id="' + esc(it.id) + '" title="终止这一条（不删文件）">⏹ 终止</button>';
-    } else if (it.id && it.state === "paused") {
-      actBtns += '<button type="button" class="mm-resume-btn" data-id="' + esc(it.id) + '" title="继续这一条">▶ 继续</button>' +
-        '<button type="button" class="mm-stop-btn" data-id="' + esc(it.id) + '" title="终止这一条（不删文件）">⏹ 终止</button>';
-    } else if (it.id && it.state === "stopped") {
-      actBtns += '<button type="button" class="mm-resume-btn" data-id="' + esc(it.id) + '" title="重新入队">▶ 继续</button>' +
-        '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
-    } else if (it.id && (it.state === "failed" || it.state === "error" || it.state === "retry-wait")) {
-      actBtns += '<button type="button" class="mm-retry-btn" data-id="' + esc(it.id) + '" title="重试下载此视频">🔄 重试</button>' +
-        '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
-    } else if (it.id && (it.state === "done" || it.state === "skipped" || it.state === "submitted")) {
-      actBtns += '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
-    }
-    const statusEl = row.querySelector(".status-text");
-    if (statusEl) {
-      const text = (it.state || "") + " " + p + "% " + speedStr + " " + fmtSize(it.doneBytes) + (it.total ? " / " + fmtSize(it.total) : "");
-      if (statusEl.getAttribute("data-act") !== actBtns || statusEl.getAttribute("data-meta") !== meta) {
-        statusEl.setAttribute("data-act", actBtns);
-        statusEl.setAttribute("data-meta", meta);
-        statusEl.innerHTML = esc(text) + actBtns + "<br>" + esc(meta);
-      } else {
-        const first = statusEl.childNodes[0];
-        if (first && first.nodeType === 3) first.textContent = text + " ";
-        else statusEl.innerHTML = esc(text) + actBtns + "<br>" + esc(meta);
-      }
-    }
+    lastBytes.set(it.id, { t: now, bytes });
   }
-  Array.from(listEl.querySelectorAll("[data-task-id]")).forEach((el) => {
-    if (!seen.has(el.getAttribute("data-task-id"))) el.remove();
-  });
+  const icon = it.state === "done" || it.state === "skipped" || it.state === "submitted" ? "✅"
+    : (it.state === "failed" || it.state === "error" ? "❌" : (it.state === "downloading" ? "⬇" : "•"));
+  const cls = it.state === "failed" || it.state === "error" ? "fail" : (it.state === "downloading" ? "" : "ok");
+  const barCls = it.state === "failed" || it.state === "error" ? "row-bar-fail"
+    : (it.state === "downloading" ? "row-bar-active"
+      : (it.state === "done" || it.state === "skipped" || it.state === "submitted" ? "row-bar-ok" : "row-bar-pending"));
+  const p = Math.max(0, Math.min(100, it.progress || 0));
+  const displayName = rowDisplayName(it);
+  const meta = [it.author, speedStr, it.error].filter(Boolean).join(" · ");
+  const row = ensureTaskRow(listEl, it);
+  row.className = "item " + cls;
+  const thumbUrl = "/api/thumb?id=" + encodeURIComponent(it.id);
+  refreshRowThumb(row, thumbUrl);
+  const iconEl = row.querySelector(".icon");
+  if (iconEl) iconEl.textContent = icon;
+  updateRowName(row, displayName, p, barCls);
+  const actBtns = rowActionButtons(it);
+  updateRowStatus(row, it, p, speedStr, meta, actBtns);
+}
+
+// 缩略图：首次创建 IMG / 失败重试（指数退避）/ 已隐藏重新加载
+function refreshRowThumb(row, thumbUrl) {
+  let thumb = row.querySelector(".row-thumb");
+  function bindThumbRetry(img) {
+    img.onerror = function () {
+      var n = Number(this.dataset.try || 0) + 1;
+      this.dataset.try = String(n);
+      var el = this;
+      var wait = n < 8 ? 400 * n : 2000;
+      setTimeout(function () { el.style.display = ""; el.src = thumbUrl + "&r=" + Date.now(); }, wait);
+    };
+    img.onload = function () { this.style.display = ""; this.dataset.try = "0"; };
+  }
+  if (thumb && thumb.tagName !== "IMG") {
+    const img = document.createElement("img");
+    img.className = "row-thumb";
+    img.alt = "";
+    img.loading = "lazy";
+    bindThumbRetry(img);
+    img.src = thumbUrl;
+    row.replaceChild(img, thumb);
+  } else if (thumb && thumb.tagName === "IMG" && thumb.style.display === "none") {
+    bindThumbRetry(thumb);
+    thumb.style.display = "";
+    thumb.src = thumbUrl + "&r=" + Date.now();
+  }
+}
+
+// 行名 + 进度条更新（复用 span 避免销毁重建导致闪烁）
+function updateRowName(row, displayName, p, barCls) {
+  let nameEl = row.querySelector(".item-name");
+  if (!nameEl) return;
+  let bar = nameEl.querySelector(".row-bar");
+  if (!bar) {
+    nameEl.textContent = displayName;
+    bar = document.createElement("span");
+    bar.innerHTML = '<span class="row-bar-fill" style="width:0%"></span>';
+    nameEl.appendChild(bar);
+  } else if (nameEl.firstChild && nameEl.firstChild.nodeType === 3) {
+    if (nameEl.firstChild.textContent !== displayName) nameEl.firstChild.textContent = displayName;
+  } else {
+    nameEl.insertBefore(document.createTextNode(displayName), bar);
+  }
+  bar.className = "row-bar " + barCls;
+  const fill = bar.querySelector(".row-bar-fill");
+  if (fill) fill.style.width = p + "%";
+}
+
+// 单行操作按钮：播放/暂停/继续/终止/重试/移除（按状态组合）
+function rowActionButtons(it) {
+  let actBtns = "";
+  if (it.id) {
+    actBtns += '<a class="mm-play-btn" href="/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener" title="本地播放">▶ 播放</a>';
+  }
+  // 缺单条任务的暂停/继续，且无法通过终止中断
+  if (it.id && it.state === "downloading") {
+    actBtns += '<button type="button" class="mm-pause-btn" data-id="' + esc(it.id) + '" title="暂停这一条">⏸ 暂停</button>' +
+      '<button type="button" class="mm-stop-btn" data-id="' + esc(it.id) + '" title="终止这一条（不删文件）">⏹ 终止</button>';
+  } else if (it.id && it.state === "paused") {
+    actBtns += '<button type="button" class="mm-resume-btn" data-id="' + esc(it.id) + '" title="继续这一条">▶ 继续</button>' +
+      '<button type="button" class="mm-stop-btn" data-id="' + esc(it.id) + '" title="终止这一条（不删文件）">⏹ 终止</button>';
+  } else if (it.id && it.state === "stopped") {
+    actBtns += '<button type="button" class="mm-resume-btn" data-id="' + esc(it.id) + '" title="重新入队">▶ 继续</button>' +
+      '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
+  } else if (it.id && (it.state === "failed" || it.state === "error" || it.state === "retry-wait")) {
+    actBtns += '<button type="button" class="mm-retry-btn" data-id="' + esc(it.id) + '" title="重试下载此视频">🔄 重试</button>' +
+      '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
+  } else if (it.id && (it.state === "done" || it.state === "skipped" || it.state === "submitted")) {
+    actBtns += '<button type="button" class="mm-skip-btn" data-id="' + esc(it.id) + '" title="从列表移除（不删文件）">🚫 移除</button>';
+  }
+  return actBtns;
+}
+
+// 行状态文本更新（data-act/data-meta 未变则只更新文本节点）
+function updateRowStatus(row, it, p, speedStr, meta, actBtns) {
+  const statusEl = row.querySelector(".status-text");
+  if (!statusEl) return;
+  const text = (it.state || "") + " " + p + "% " + speedStr + " " + fmtSize(it.doneBytes) + (it.total ? " / " + fmtSize(it.total) : "");
+  if (statusEl.getAttribute("data-act") !== actBtns || statusEl.getAttribute("data-meta") !== meta) {
+    statusEl.setAttribute("data-act", actBtns);
+    statusEl.setAttribute("data-meta", meta);
+    statusEl.innerHTML = esc(text) + actBtns + "<br>" + esc(meta);
+  } else {
+    const first = statusEl.childNodes[0];
+    if (first && first.nodeType === 3) first.textContent = text + " ";
+    else statusEl.innerHTML = esc(text) + actBtns + "<br>" + esc(meta);
+  }
 }
 
 
@@ -554,6 +582,18 @@ function applyRatingFilter(list) {
 }
 
 function bindSearch() {
+  bindSearchDates();
+  bindKwSearch();
+  bindDateSearch();
+  bindSearchStopClear();
+  bindSearchExportImport();
+  bindSearchSelectAll();
+  bindSearchSave();
+  bindSearchDownloadSelected();
+}
+
+// 搜索日期初始化 + 最早日期按钮
+function bindSearchDates() {
   // 开始和结束都默认今天（bindInputs 内部也会兜底，这里提前填好防闪烁）
   const today = (window.SearchDateRange && SearchDateRange.todayYmd()) || localDate(new Date());
   if ($("#searchStart") && !$("#searchStart").value) $("#searchStart").value = today;
@@ -573,7 +613,10 @@ function bindSearch() {
     }
     setStatus($("#searchStatus"), "开始日期已设为最早（2000-01-01）");
   });
+}
 
+// 关键词搜索：按钮 + Enter + 类型切换 + 内容分级筛选
+function bindKwSearch() {
   $("#kwSearchBtn").addEventListener("click", runSearch);
   $("#kwInput").addEventListener("keydown", (e) => { if (e.key === "Enter") runSearch(); });
   bindFollowingCombo();
@@ -583,7 +626,10 @@ function bindSearch() {
   }
   if ($("#filterNormal")) $("#filterNormal").addEventListener("change", () => { renderSearchResults(); });
   if ($("#filterNsfw")) $("#filterNsfw").addEventListener("change", () => { renderSearchResults(); });
+}
 
+// 按时间搜索启动
+function bindDateSearch() {
   $("#searchBtn").addEventListener("click", async () => {
     const range = window.SearchDateRange
       ? SearchDateRange.enforceDateRules($("#searchStart").value, $("#searchEnd").value)
@@ -615,7 +661,10 @@ function bindSearch() {
       $("#searchBtn").disabled = false;
     }
   });
+}
 
+// 停止 / 清空搜索
+function bindSearchStopClear() {
   $("#stopSearchBtn").addEventListener("click", async () => {
     await api("/api/search/stop", "POST", {});
     $("#stopSearchBtn").style.display = "none";
@@ -629,7 +678,10 @@ function bindSearch() {
     await api("/api/search/clear", "POST", {});
     setStatus($("#searchStatus"), "列表已清空");
   });
+}
 
+// 导出 / 导入搜索记录
+function bindSearchExportImport() {
   $("#exportSearchBtn").addEventListener("click", async () => {
     try {
       const r = await fetch("/api/search/export", { credentials: "same-origin" });
@@ -671,21 +723,29 @@ function bindSearch() {
       ev.target.value = "";
     }
   });
+}
 
-  function bindSelectAll(listSel, items) {
-    const wantNormal = $("#filterNormal").checked;
-    const wantNsfw = $("#filterNsfw").checked;
-    document.querySelectorAll(listSel + " input[type=checkbox]").forEach((cb) => {
-      const id = cb.dataset.id;
-      const it = items.find((x) => videoId(x) === id);
-      cb.checked = !!it && (videoNsfw(it) ? wantNsfw : wantNormal);
-    });
-  }
+// 全选（按普通/NSFW 筛选）/ 全不选
+function bindSearchSelectAll() {
   $("#selectAllBtn").addEventListener("click", () => bindSelectAll("#searchResultList", searchResults));
   $("#selectNoneBtn").addEventListener("click", () => {
     document.querySelectorAll("#searchResultList input[type=checkbox]").forEach((c) => { c.checked = false; });
   });
+}
 
+// 按列表勾选状态批量选择（普通/NSFW 过滤）
+function bindSelectAll(listSel, items) {
+  const wantNormal = $("#filterNormal").checked;
+  const wantNsfw = $("#filterNsfw").checked;
+  document.querySelectorAll(listSel + " input[type=checkbox]").forEach((cb) => {
+    const id = cb.dataset.id;
+    const it = items.find((x) => videoId(x) === id);
+    cb.checked = !!it && (videoNsfw(it) ? wantNsfw : wantNormal);
+  });
+}
+
+// 保存搜索结果（覆盖写入 search_cache.json）
+function bindSearchSave() {
   $("#saveSearchBtn").addEventListener("click", async () => {
     try {
       const r = await api("/api/search/save", "POST", { results: searchResults });
@@ -695,26 +755,31 @@ function bindSearch() {
       setStatus($("#searchStatus"), "保存失败: " + e.message, "err");
     }
   });
+}
 
-  async function downloadFromList(listSel, items) {
-    const ids = [...document.querySelectorAll(listSel + " input[type=checkbox]:checked")].map((c) => c.dataset.id);
-    if (!ids.length) { showFeedback("请先勾选", "err"); return; }
-    const payload = ids.map((id) => {
-      const v = items.find((x) => videoId(x) === id) || { id };
-      if (v && v._kind === "user") return null;
-      return { id, title: v.title || v.name || "", author: videoAuthor(v), fileId: v.file && v.file.id, thumbnail: v.thumbnail, file: v.file };
-    }).filter(Boolean);
-    if (!payload.length) { showFeedback("作者结果不能直接下载，请改搜视频", "err"); return; }
-    try {
-      const r = await api("/api/download", "POST", { items: payload });
-      if (!r.ok) throw new Error(r.error || "启动失败");
-      showFeedback("已加入下载（" + payload.length + "）", "ok");
-      switchTab("progress");
-    } catch (e) {
-      showFeedback(e.message, "err");
-    }
-  }
+// 下载选中项（视频可下载；作者结果提示改搜视频）
+function bindSearchDownloadSelected() {
   $("#downloadSelectedBtn").addEventListener("click", () => downloadFromList("#searchResultList", searchResults));
+}
+
+// 从列表勾选项组装下载 payload 并提交
+async function downloadFromList(listSel, items) {
+  const ids = [...document.querySelectorAll(listSel + " input[type=checkbox]:checked")].map((c) => c.dataset.id);
+  if (!ids.length) { showFeedback("请先勾选", "err"); return; }
+  const payload = ids.map((id) => {
+    const v = items.find((x) => videoId(x) === id) || { id };
+    if (v && v._kind === "user") return null;
+    return { id, title: v.title || v.name || "", author: videoAuthor(v), fileId: v.file && v.file.id, thumbnail: v.thumbnail, file: v.file };
+  }).filter(Boolean);
+  if (!payload.length) { showFeedback("作者结果不能直接下载，请改搜视频", "err"); return; }
+  try {
+    const r = await api("/api/download", "POST", { items: payload });
+    if (!r.ok) throw new Error(r.error || "启动失败");
+    showFeedback("已加入下载（" + payload.length + "）", "ok");
+    switchTab("progress");
+  } catch (e) {
+    showFeedback(e.message, "err");
+  }
 }
 
 function startSearchPoll() {
@@ -828,7 +893,7 @@ function normalizeUserRow(u) {
 function thumbSrc(v) {
   // 2026-09-04：搜索列表只读本地封面。
   // 【原代码】拼 id+file 让 /api/thumb 现场拉官方，列表不能一次加载完。
-  // 【改为】用户原话「现在列表也是，不能全部加载封面」+「视频播放从本地获取」
+  // 【改为】列表封面无法全部加载；视频播放从本地获取
   // 【思路】URL 只用 id；file 作 query 仅提示服务端缺图时入队，不阻塞当前 <img>。
   const id = videoId(v);
   if (!id) return "";
@@ -1105,6 +1170,17 @@ function bindBrowse() {
 }
 
 function bindSettings() {
+  bindSettingsFields();
+  bindSettingsSave();
+  bindSettingsPassword();
+  bindSettingsAccountCheck();
+  bindSettingsIndex();
+  bindSettingsRename();
+  bindSettingsData();
+}
+
+// aria2 同机判断徽标 + 文件名模板 {ID} 校验
+function bindSettingsFields() {
   // 2026-09-01 aria2 同机判断：输入框改动后即时刷新徽标
   const aria2Input = $("#set-aria2Path");
   if (aria2Input) {
@@ -1118,9 +1194,13 @@ function bindSettings() {
       tplEl.style.outline = ok ? "" : "2px solid var(--fail)";
     });
   }
-  // 2026-09-01 保存设置改悬浮按钮（右下角 💾，仅设置页显示；反馈改 toast）
+}
+
+// 保存设置悬浮按钮（右下角 💾，仅设置页显示；反馈改 toast）
+function bindSettingsSave() {
   const saveFab = $("#saveSettingsFab");
-  if (saveFab) saveFab.addEventListener("click", async () => {
+  if (!saveFab) return;
+  saveFab.addEventListener("click", async () => {
     try {
       const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
       if (tpl.indexOf("{ID}") < 0) {
@@ -1168,6 +1248,10 @@ function bindSettings() {
       showToast("❌ 保存失败：" + e.message, "err");
     }
   });
+}
+
+// 修改登录密码
+function bindSettingsPassword() {
   $("#changePwdBtn").addEventListener("click", async () => {
     const pwd = $("#newPwd").value;
     if (!pwd || pwd.length < 4) { setStatus($("#pwdStatus"), "密码至少 4 位", "err"); return; }
@@ -1180,6 +1264,10 @@ function bindSettings() {
       setStatus($("#pwdStatus"), e.message, "err");
     }
   });
+}
+
+// Iwara 账号登录状态检测
+function bindSettingsAccountCheck() {
   $("#gbLoginCheckBtn").addEventListener("click", async () => {
     const el = $("#gbLoginStatus");
     el.textContent = "检测中…";
@@ -1194,7 +1282,10 @@ function bindSettings() {
       el.className = "status err";
     }
   });
+}
 
+// 索引：导出 / 导入 / 扫描下载目录
+function bindSettingsIndex() {
   $("#exportIndexBtn").addEventListener("click", async () => {
     const st = $("#indexStatus");
     setStatus(st, "正在导出索引…");
@@ -1212,57 +1303,6 @@ function bindSettings() {
     } catch (e) {
       setStatus(st, "导出失败: " + (e && e.message || e), "err");
     }
-  });
-  function renderRenameErrors(errors) {
-    return (errors || []).map((e) => {
-      const force = e.canForce
-        ? '<button type="button" class="mm-retry-btn rename-force-btn" data-from="' + esc(e.from) + '">强制执行</button>'
-        : "";
-      return '<div class="item fail"><span class="item-name">' + esc(e.from) + " → " + esc(e.to || "") + "：" + esc(e.error) + "</span>" + force + "</div>";
-    }).join("");
-  }
-  async function runRename(dryRun, extra) {
-    const st = $("#renameStatus");
-    const el = $("#renamePlan");
-    extra = extra || {};
-    if (st) st.textContent = extra.forceFrom ? "强制覆盖中…" : (dryRun ? "扫描中…" : "执行中…");
-    try {
-      const body = Object.assign({ dryRun: dryRun }, extra);
-      const r = await api("/api/rename-files", "POST", body);
-      if (!r.ok) throw new Error(r.error || "失败");
-      if (dryRun) {
-        const rows = (r.plan || []).slice(0, 200).map((row) => {
-          const warn = row.exists ? " ⚠目标已存在（确认执行后可单条强制覆盖）" : "";
-          return "<div class=\"item\"><span class=\"item-name\">" + diffArrow(row.fromName, row.toName) + warn + "</span></div>";
-        }).join("");
-        if (el) el.innerHTML = rows || "<div class=\"empty\">没有需要改名的文件</div>";
-        if (st) st.textContent = "视频 " + (r.videoCount || 0) + "，json " + (r.indexCount || 0) + "，待改名 " + (r.count || 0) + (r.skipped ? "，跳过 " + r.skipped : "");
-      } else {
-        if (st) st.textContent = "已改名 " + (r.renamed || 0) + "，失败 " + (r.failed || 0);
-        if (el) {
-          const okRows = (r.items || []).map((it) => "<div class=\"item\"><span class=\"item-name\">" + esc(it.from) + " → " + esc(it.to) + "</span></div>").join("");
-          el.innerHTML = okRows + renderRenameErrors(r.errors);
-        }
-        showFeedback("已改名 " + (r.renamed || 0) + "，失败 " + (r.failed || 0), r.failed ? "err" : "ok");
-      }
-    } catch (e) {
-      if (st) st.textContent = e.message || String(e);
-      showFeedback(e.message || String(e), "err");
-    }
-  }
-  if ($("#renamePreviewBtn")) $("#renamePreviewBtn").addEventListener("click", () => runRename(true));
-  if ($("#renameGoBtn")) $("#renameGoBtn").addEventListener("click", () => {
-    // 用户原话：「iwara确认执行后的弹窗不要，项目禁止哪种原生弹窗」
-    // 禁止 window.confirm / alert / prompt，用页面内 toast + 状态行。
-    runRename(false);
-  });
-  if ($("#renamePlan")) $("#renamePlan").addEventListener("click", async (ev) => {
-    const btn = ev.target && ev.target.closest && ev.target.closest(".rename-force-btn");
-    if (!btn) return;
-    const from = btn.getAttribute("data-from");
-    if (!from) return;
-    btn.disabled = true;
-    await runRename(false, { forceFrom: from });
   });
   $("#importIndexBtn").addEventListener("click", () => { $("#importIndexFile").click(); });
   $("#importIndexFile").addEventListener("change", async (ev) => {
@@ -1293,7 +1333,69 @@ function bindSettings() {
       setStatus(st, "扫描失败: " + (e && e.message || e), "err");
     }
   });
+}
 
+// 批量改名：预览 / 执行 / 单条强制覆盖
+function bindSettingsRename() {
+  if ($("#renamePreviewBtn")) $("#renamePreviewBtn").addEventListener("click", () => runRenameFiles(true));
+  if ($("#renameGoBtn")) $("#renameGoBtn").addEventListener("click", () => {
+    // 确认执行后不弹窗；项目禁止原生弹窗
+    // 禁止 window.confirm / alert / prompt，用页面内 toast + 状态行。
+    runRenameFiles(false);
+  });
+  if ($("#renamePlan")) $("#renamePlan").addEventListener("click", async (ev) => {
+    const btn = ev.target && ev.target.closest && ev.target.closest(".rename-force-btn");
+    if (!btn) return;
+    const from = btn.getAttribute("data-from");
+    if (!from) return;
+    btn.disabled = true;
+    await runRenameFiles(false, { forceFrom: from });
+  });
+}
+
+// 重命名错误行（可单条强制执行）
+function renderRenameErrors(errors) {
+  return (errors || []).map((e) => {
+    const force = e.canForce
+      ? '<button type="button" class="mm-retry-btn rename-force-btn" data-from="' + esc(e.from) + '">强制执行</button>'
+      : "";
+    return '<div class="item fail"><span class="item-name">' + esc(e.from) + " → " + esc(e.to || "") + "：" + esc(e.error) + "</span>" + force + "</div>";
+  }).join("");
+}
+
+// 批量改名请求（dryRun=预览；forceFrom=单条强制覆盖）
+async function runRenameFiles(dryRun, extra) {
+  const st = $("#renameStatus");
+  const el = $("#renamePlan");
+  extra = extra || {};
+  if (st) st.textContent = extra.forceFrom ? "强制覆盖中…" : (dryRun ? "扫描中…" : "执行中…");
+  try {
+    const body = Object.assign({ dryRun: dryRun }, extra);
+    const r = await api("/api/rename-files", "POST", body);
+    if (!r.ok) throw new Error(r.error || "失败");
+    if (dryRun) {
+      const rows = (r.plan || []).slice(0, 200).map((row) => {
+        const warn = row.exists ? " ⚠目标已存在（确认执行后可单条强制覆盖）" : "";
+        return "<div class=\"item\"><span class=\"item-name\">" + diffArrow(row.fromName, row.toName) + warn + "</span></div>";
+      }).join("");
+      if (el) el.innerHTML = rows || "<div class=\"empty\">没有需要改名的文件</div>";
+      if (st) st.textContent = "视频 " + (r.videoCount || 0) + "，json " + (r.indexCount || 0) + "，待改名 " + (r.count || 0) + (r.skipped ? "，跳过 " + r.skipped : "");
+    } else {
+      if (st) st.textContent = "已改名 " + (r.renamed || 0) + "，失败 " + (r.failed || 0);
+      if (el) {
+        const okRows = (r.items || []).map((it) => "<div class=\"item\"><span class=\"item-name\">" + esc(it.from) + " → " + esc(it.to) + "</span></div>").join("");
+        el.innerHTML = okRows + renderRenameErrors(r.errors);
+      }
+      showFeedback("已改名 " + (r.renamed || 0) + "，失败 " + (r.failed || 0), r.failed ? "err" : "ok");
+    }
+  } catch (e) {
+    if (st) st.textContent = e.message || String(e);
+    showFeedback(e.message || String(e), "err");
+  }
+}
+
+// 用户数据：导出 zip / 导入恢复
+function bindSettingsData() {
   $("#exportDataBtn").addEventListener("click", async () => {
     const st = $("#dataStatus");
     setStatus(st, "正在导出…");
@@ -1384,8 +1486,8 @@ function formatIwaraLoginBlock(r) {
   L.push("───");
   L.push("完整 Cookie: " + (cred.cookieChars || 0) + " 字符 / " + (cred.cookieItems || 0) + " 项 ｜ 存于服务器（不回传明文）");
   L.push("含 cf_clearance: " + (cred.hasCfClearance ? "✅ 有" : "❌ 无"));
-  L.push("refresh_token: " + (cred.hasToken ? "✅ 有" : "❌ 无"));
-  L.push("access_token: " + (cred.hasAccessToken ? "✅ 有" : "❌ 无"));
+  L.push("refresh_token: " + (cred.hasToken ? "✅ 有" : "❌ 无")); // dsh-skip-sensitive（纯文本标签，非凭据）
+  L.push("access_token: " + (cred.hasAccessToken ? "✅ 有" : "❌ 无")); // dsh-skip-sensitive（纯文本标签，非凭据）
   return L.join("\n");
 }
 

@@ -1,5 +1,5 @@
 // 封面缓存：按视频 id 落到项目目录 server/thumbs/<id>.jpg
-// 用户原话：「封面是后台扫描完成抽帧，前台直接读取」「打开视频页面所有视频都已经是加载好封面」
+// 封面由后台扫描抽帧、前台直接读取；打开视频页时全部封面已就绪
 // AI 思路：启动后后台扫下载目录，tool/ffmpeg 抽 1s 处一帧写入 thumbs/。
 //   /api/thumb 只读已有 jpg，请求路径不抽帧。下载完成时顺手补一张。
 "use strict";
@@ -79,7 +79,7 @@ function writeThumb(id, buf, origin) {
 }
 
 function findFfmpeg() {
-  // 【原代码】只找系统 /usr/bin/ffmpeg。【改为】用户原话「项目用到的工具在项目tool目录保存一份 比如ffmpeg」
+  // 【原代码】只找系统 /usr/bin/ffmpeg。【改为】工具在项目 tool/ 目录保存一份（如 ffmpeg）
   // 【思路】优先项目 tool/ffmpeg 包装脚本（自带 ffmpeg-lib），换机系统没有 mediasrv 也能抽帧
   const cands = [
     process.env.FFMPEG || "",
@@ -186,7 +186,7 @@ async function fetchRemote(id, fileId, n) {
 }
 
 // 2026-09-04：搜索/下载时把官方封面落到 thumbs/<id>.jpg。
-// 用户原话：「修改代码实现搜索时，下载时从官方获取封面并按本地规范保存优先于本地生成，视频播放从本地获取，包括这从网上获取保存到本地的」
+// 搜索/下载时从官方取封面并按本地规范保存、优先于本地生成；视频播放从本地取（含在线取后存本地）
 // 【思路】规范=server/thumbs/<id>.jpg。已有文件跳过（低负载）。队列并发 2。
 const officialQueue = [];
 const officialQueued = new Set();
@@ -266,7 +266,7 @@ function ensureThumb(id, opts) {
   return job;
 }
 
-// 2026-09-03 用户原话：「视频文件不存在就不要生成封面图」
+// 2026-09-03 视频文件不存在则不生成封面图
 // 最简逻辑：filePath 不存在 → 跳过；已存在 → 抽帧覆盖
 function ensureFromInfo(id, info, filePath) {
   const vid = safeId(id);
@@ -279,7 +279,7 @@ function ensureFromInfo(id, info, filePath) {
   } catch (_) { return Promise.resolve(null); }
   // 2026-09-04：播放页不得覆盖已有封面。
   // 【原代码】每次 play-info 都 ensureFromInfo → fetchRemote/extractFrame 覆盖 thumbs/<id>.jpg。
-  // 【改为】用户原话「正常的封面播放时刷新变成错误的」「每次HTML封面独立，封面变正确，错误。刷新后恢复原因」
+  // 【改为】播放时刷新封面会变错；每次 HTML 封面独立，刷新后恢复——查明根因
   // 【思路】模拟：GET 官方/抽帧图 15351 → 打 /api/play-info → 1 秒内文件变成另一张 4824。
   //   play.html 又在 500ms/2000ms 用 &t= 强刷，把刚覆盖的错图显示出来。F5 若赶上覆盖前缓存就会「刷新又对」。
   //   已有 jpg 只读；缺图才官方优先、再抽帧。

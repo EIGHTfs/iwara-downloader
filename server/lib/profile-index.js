@@ -1,5 +1,5 @@
 // 作者信息索引：json/profile/<username>.json + 总表 json/profile/iwara-profile.json
-// 用户原话：「json/profile/放作者信息索引」kiralan:{ name, profile:"/profile/kiralan", avatar:"/avatar/<id>/<id>.jpg" }
+// json/profile/ 存放作者信息索引。kiralan:{ name, profile:"/profile/kiralan", avatar:"/avatar/<id>/<id>.jpg" }
 // 「下载时同时生成作者索引（存在则跳过，除非name变了）」
 // 「有的作者没有avatar检查下原因」——官方 GET /profile/{u} 的 user.avatar 就是 null，不是漏下。
 // 「iwara-downloader-server/avatar/保存这些头像」
@@ -155,7 +155,7 @@ async function upsertFromUser(user, extra) {
   const existed = !!(prev && (prev.name || prev.profile || prev.avatar !== undefined) && fs.existsSync(file));
   let name = String(u.name || (extra && extra.name) || "").trim();
 
-  // 用户原话：「存在则跳过，除非name变了」
+  // 已存在则跳过，除非 name 变了
   // 【原代码】空头像每次都打官方 /profile，搜索翻页反复请求。
   // 【改为】文件在且 name 没变就跳过；官方 avatar=null 的作者保持 avatar:""。
   if (existed && prev.name && (!name || name === prev.name)) {
