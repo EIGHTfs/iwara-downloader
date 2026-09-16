@@ -22,6 +22,7 @@ const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
 const searchDateRange = require("./lib/search-date-range.cjs");
 const dataBackup = require("./lib/data-backup");
+const autoUpdate = require("./lib/auto-update");
 const videoIndex = require("./lib/video-index");
 const renameFiles = require("./lib/rename-files");
 const deviceCheck = require("./lib/device-check");
@@ -207,7 +208,7 @@ const api = {
   sendJson, readBody, parseCredentialText,
   setSessionCookie, requireAuth, publicSettings,
   streamLocalVideo, playHint, serveStatic,
-  cfg, auth, iwaraApi, downloader, search, searchDateRange, dataBackup,
+  cfg, auth, iwaraApi, downloader, search, searchDateRange, dataBackup, autoUpdate,
   videoIndex, renameFiles, deviceCheck, thumbCache, profileIndex,
   fs, path, os,
   isDeniedBrowseDir, isSystemJunkName
@@ -224,6 +225,7 @@ require("./routes/browse")(api);
 require("./routes/play")(api);
 require("./routes/download")(api);
 require("./routes/rename")(api);
+require("./routes/auto-update")(api);
 
 // ---------- 路由分发 ----------
 // method 支持字符串 / 数组 / "*"；path 支持精确字符串 / 正则（如 /avatar/ 前缀、/{id} 短链）
@@ -332,6 +334,13 @@ const server = http.createServer(async (req, res) => {
   auth.loadSessions();
   downloader.restorePendingTask();
   search.restorePendingQuery();
+
+  // 自动更新：监控代码变更 → 防抖重启（config autoUpdate.enabled 控制，默认关）
+  autoUpdate.start(cfgNow.autoUpdate || { enabled: false }, async () => {
+    // 重启回调：任务状态已持久化，下次启动自动恢复
+  }, (msg) => {
+    // 状态回调：内部 _log 已打印
+  });
 
   server.listen(finalPort, "0.0.0.0", () => {
     console.log("==============================================");
