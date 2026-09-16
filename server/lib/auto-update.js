@@ -57,6 +57,12 @@ function createAutoUpdate(opts) {
   const GITHUB_EXCLUDE = [
     // 运行态配置（含密码/gbCookie/下载路径，本机权威，绝不覆盖）
     "server/config.json",
+    // 启停入口：重启依赖它们，被远端旧版覆盖会导致「重启变关闭」
+    "start.sh",
+    "start-linux.sh",
+    "start-macos.sh",
+    "server/boot.cjs",
+    "server/setup.sh",
     // 运行态索引/任务/会话
     "json/index",
     "json/sessions.json",
@@ -196,6 +202,18 @@ function createAutoUpdate(opts) {
       }
       const newSha = latest.sha;
       const newDate = latest.committedAt || "";
+
+      // 首次运行（无状态文件）：只建立基线，不应用更新、不重启。
+      // 此时无法判断本机与远端谁新——若按 sha 比较会把「无记录」误判为有新版本，
+      // 导致启动即全量覆盖代码并重启（覆盖 start.sh/boot.cjs 时会让服务起不来）。
+      if (!state.lastSha && !state.lastCommitDate) {
+        saveState({ lastSha: newSha, lastCommitDate: newDate, updatedAt: Date.now() });
+        const msg = `首次运行，已记录基线版本 ${newSha.slice(0, 8)}${newDate ? "（" + fmtDateCn(newDate) + " 北京时间）" : ""}，不执行更新`;
+        _log(msg);
+        lastCheck = { time: Date.now(), result: "baseline", message: msg, latestSha: newSha, latestCommitDate: newDate };
+        return;
+      }
+
       // 判新：优先按提交时间比较（直观、不怕分叉/远端回退——时间更早或相同不拉取）；
       // 旧状态文件没有 lastCommitDate 时降级为 sha 比较，保证兼容。
       let isNew;
