@@ -63,11 +63,11 @@ const DEFAULT_CONFIG = {
   sessionHours: 72,
   // 网盘链接探测（预留，后续版本启用）
   checkDownloadLink: false,
-  // 2026-09-03 用户原话：设置里选下载内容「视频 / json（自己生成的索引）」
-  // 2026-09-03 用户原话：设置里新增「视频播放公开」选中就播放视频无密码，默认选中
-  // AI 思路：选中 = playPublic true = /api/play 和 /api/play-info 免登录；不选 = 需要服务端登录
   playPublic: true,
-  downloadToggles: { video: true, json: true }
+  downloadToggles: { video: true, json: true },
+  // 自动更新：watch=监控文件变更重启 / git=定时 git pull / github=定时从 GitHub 拉取
+  //   enabled=false 默认关；github 模式需 githubRepo；私有仓库才配 githubToken
+  autoUpdate: { enabled: false, mode: "watch", interval: 300, githubRepo: "EIGHTfs/iwara-downloader", githubBranch: "main", githubToken: "" }
 };
 
 const DEFAULT_FILE_NAME_TEMPLATE = "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]";
