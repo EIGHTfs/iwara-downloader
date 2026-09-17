@@ -26,7 +26,12 @@ const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
 const searchDateRange = require("./framework/search-date-range.cjs");
 const { createRegistry } = require("./framework/route-registry");
-const dataBackup = require("./lib/data-backup");
+// 用户数据备份/恢复：走框架层通用工厂（createBackup），项目只传配置
+const dataBackup = require("./framework/data-backup").createBackup({
+  appName: "iwara-downloader-server",
+  appRoot: path.join(__dirname, ".."),
+  toolDir: path.join(__dirname, "..", "tool", "bin"),
+});
 const autoUpdate = require("./lib/auto-update");
 const videoIndex = require("./lib/video-index");
 const renameFiles = require("./lib/rename-files");
