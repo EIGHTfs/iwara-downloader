@@ -202,6 +202,8 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 ## 版本
 
 | 版本 | 内容 |
+|---|---|
+| 1.4.0 | 备份恢复改用框架层 `createBackup`（配置驱动），删除项目内 `lib/data-backup.js`；`userdata-manifest.json` 改为不入库（导出时自动生成）；清单生成统一走 `marker-manifest`，修正此前把框架文档示例当成数据条目、导致部分 desc 显示为 `desc=xxx` 的问题 |
 | 1.3.1 | 公开库不再跟踪开发者文档 / TROUBLESHOOTING.md |
 | 1.3.0 | start.sh：彩色输出、日志 10MB 轮转压缩、启动前校验 config.json、status 更详细 |
 | 1.2.0 | 启停脚本统一为 start.sh / start-windows.bat；PID 写在项目根 `iwara-downloader-server.pid` |
