@@ -25,6 +25,7 @@ const iwaraApi = require("./lib/iwara-api");
 const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
 const searchDateRange = require("./framework/search-date-range.cjs");
+const { createRegistry } = require("./framework/route-registry");
 const dataBackup = require("./lib/data-backup");
 const autoUpdate = require("./lib/auto-update");
 const videoIndex = require("./lib/video-index");
@@ -202,10 +203,11 @@ function serveStatic(req, res, pathname) {
 }
 
 // ---------- 路由装配 ----------
-const publicRoutes = [];
-const routes = [];
-const routePublic = (method, p, handler) => publicRoutes.push({ method, p, handler });
-const route = (method, p, handler) => routes.push({ method, p, handler });
+// 路由注册与匹配统一走框架 route-registry（闭包式）+ route-core（共享匹配核心）。
+// registry.routePublic 登记公开路由，registry.route 登记需鉴权路由。
+const registry = createRegistry();
+const route = registry.route;
+const routePublic = registry.routePublic;
 
 const api = {
   route, routePublic,
@@ -232,22 +234,10 @@ require("./routes/rename")(api);
 require("./routes/auto-update")(api);
 
 // ---------- 路由分发 ----------
-// method 支持字符串 / 数组 / "*"；path 支持精确字符串 / 正则（如 /avatar/ 前缀、/{id} 短链）
-function matchMethod(ruleMethod, method) {
-  if (ruleMethod === "*") return true;
-  const list = Array.isArray(ruleMethod) ? ruleMethod : [ruleMethod];
-  return list.indexOf(method) >= 0;
-}
-function matchPath(rulePath, pathname) {
-  if (rulePath instanceof RegExp) return rulePath.test(pathname);
-  return rulePath === pathname;
-}
-function match(list, method, pathname) {
-  for (const r of list) {
-    if (matchMethod(r.method, method) && matchPath(r.p, pathname)) return r.handler;
-  }
-  return null;
-}
+// 匹配实现已归框架 route-core（route-registry 复用同一份）：
+//   method 支持字符串 / 数组 / "*"；path 支持精确字符串 / 正则
+//   （如 /avatar/ 前缀、/{id} 短链）；线性扫描、先注册先赢。
+// 分发时先查公开路由再查需鉴权路由，与原有顺序一致。
 
 const server = http.createServer(async (req, res) => {
   const parsed = urlMod.parse(req.url, true);
@@ -277,14 +267,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     // ---- 公开路由（登录/登出/状态/本地播放/封面/头像/sidecar）----
-    const pub = match(publicRoutes, method, pathname);
+    const pub = registry.matchPublic(method, pathname);
     if (pub) return await pub(req, res, parsed);
     // ---- 需鉴权 ----
     if (pathname.startsWith("/api/") && !requireAuth(req)) {
       return sendJson(res, 401, { ok: false, error: "未登录" });
     }
     // ---- 业务路由（/api/*）----
-    const h = match(routes, method, pathname);
+    const h = registry.match(method, pathname);
     if (h) return await h(req, res, parsed);
     // ---- 播放短链 /{id} ----
     // 地址栏不要 play.html#id=；单段路径且像视频 id、PUBLIC 里没有同名文件 → 吐 play.html。
