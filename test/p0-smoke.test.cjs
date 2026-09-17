@@ -34,40 +34,51 @@ test("http: parseCredentialText 缺字段为 null 不误吞", () => {
   assert.equal(r.accessToken, null);
 });
 
-// ---- path-safe（B1 白名单收敛）----
-function fakeCfg(downloadPath) {
-  return { readConfig: () => ({ downloadPath }) };
-}
+// ---- path-safe（B1 黑名单实现：只拉黑各平台系统关键目录，不做白名单收敛）----
+// 历史说明：本文件早期（提交 e3eb197）验证的是白名单收敛版
+//   downloadRoots / isWithinRoots / isBrowsableDir(dir, roots)；
+// 提交 fe943a6 起按决策改为黑名单版（局域网自用，只需拉黑系统目录，
+//   无下载根时也不限制），测试未同步而持续失败。此处改为验证当前实现。
 
-test("path-safe: downloadRoots 取 config.downloadPath", () => {
-  const roots = pathSafe.downloadRoots(fakeCfg("/vol/Iwara/"));
-  assert.deepEqual(roots, ["/vol/Iwara/"]);
+test("path-safe: 系统关键目录被拦截", () => {
+  for (const p of ["/etc", "/etc/passwd", "/proc/1", "/sys/class", "/usr/local", "/root", "/boot", "/var/log"]) {
+    assert.equal(pathSafe.isDeniedBrowseDir(p), true, p + " 应被拦截");
+  }
 });
 
-test("path-safe: downloadRoots 空 downloadPath 返回空", () => {
-  assert.deepEqual(pathSafe.downloadRoots(fakeCfg("")), []);
+test("path-safe: macOS 系统目录被拦截", () => {
+  for (const p of ["/System", "/Library", "/Applications", "/private/var"]) {
+    assert.equal(pathSafe.isDeniedBrowseDir(p), true, p + " 应被拦截");
+  }
 });
 
-test("path-safe: isWithinRoots 根内放行 / 根外拒绝", () => {
-  const roots = ["/vol/Iwara"];
-  assert.equal(pathSafe.isWithinRoots("/vol/Iwara", roots), true);
-  assert.equal(pathSafe.isWithinRoots("/vol/Iwara/作者/视频.mp4", roots), true);
-  assert.equal(pathSafe.isWithinRoots("/vol/Other/file.mp4", roots), false);
-  assert.equal(pathSafe.isWithinRoots("/etc/passwd", roots), false);
+test("path-safe: 普通目录放行（局域网自用不限制数据盘）", () => {
+  for (const p of ["/", "/home/user", "/tmp", "/vol1", "/vol2", "/vol02/1000-0-1c60be7b"]) {
+    assert.equal(pathSafe.isDeniedBrowseDir(p), false, p + " 应放行");
+  }
 });
 
-test("path-safe: isBrowsableDir 祖先/后代放行，无关目录拒绝", () => {
-  const roots = ["/vol/Iwara"];
-  assert.equal(pathSafe.isBrowsableDir("/", roots), true, "祖先 / 放行（下钻到下载根）");
-  assert.equal(pathSafe.isBrowsableDir("/vol", roots), true, "祖先 /vol 放行");
-  assert.equal(pathSafe.isBrowsableDir("/vol/Iwara", roots), true, "下载根本身");
-  assert.equal(pathSafe.isBrowsableDir("/vol/Iwara/sub", roots), true, "后代子目录");
-  assert.equal(pathSafe.isBrowsableDir("/etc", roots), false, "无关目录拒绝");
-  assert.equal(pathSafe.isBrowsableDir("/home", roots), false);
+test("path-safe: 路径穿越到系统目录仍被拦截", () => {
+  // resolve 后再比对黑名单：含 .. 的路径先归一化，穿越到 /etc 的写法仍应命中
+  assert.equal(pathSafe.isDeniedBrowseDir("/home/../etc"), true, "上跳一级到 /etc 应拒绝");
+  assert.equal(pathSafe.isDeniedBrowseDir("/usr/../etc/passwd"), true, "/usr/../etc 应拒绝");
+  assert.equal(pathSafe.isDeniedBrowseDir("/etc/../etc"), true, "归一化后仍在 /etc 应拒绝");
+  // 对照：../ 未穿越到系统目录的路径正常放行
+  assert.equal(pathSafe.isDeniedBrowseDir("/home/user/../etc"), false, "/home/user/../etc 归一化为 /home/etc，非系统目录");
 });
 
-test("path-safe: isBrowsableDir 无根时不限制（兼容未配置）", () => {
-  assert.equal(pathSafe.isBrowsableDir("/etc", []), true);
+test("path-safe: 系统残留目录名过滤", () => {
+  for (const n of ["@eaDir", "#recycle", ".git", "System Volume Information"]) {
+    assert.equal(pathSafe.isSystemJunkName(n), true, n + " 应过滤");
+  }
+  assert.equal(pathSafe.isSystemJunkName("我的视频"), false);
+});
+
+test("path-safe: gbmd 兼容别名可用", () => {
+  assert.equal(typeof pathSafe.isBlocked, "function");
+  assert.equal(typeof pathSafe.isBrowsableDir, "function");
+  assert.equal(pathSafe.isBlocked("/etc"), true);
+  assert.equal(pathSafe.isBrowsableDir("/vol2"), true);
 });
 
 // ---- html.escapeHtml ----
