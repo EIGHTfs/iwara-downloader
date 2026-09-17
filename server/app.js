@@ -13,8 +13,9 @@ const path = require("path");
 const urlMod = require("url");
 const os = require("os");
 
-const appLog = require("./lib/app-log");
-appLog.install();
+const appLog = require("./framework/app-log");
+// iwara 特有高频轮询端点静默（封面缓存与播放页轮询，避免日志刷屏）
+appLog.install({ quietApis: ["/api/thumb", "/api/play", "/api/play-info"] });
 const cfg = require("./config");
 const auth = require("./auth");
 const iwaraApi = require("./lib/iwara-api");
