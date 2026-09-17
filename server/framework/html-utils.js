@@ -1,4 +1,4 @@
-// utils/html.js —— HTML 文本转义（P2 去重，参照 gbmd utils/html.js）
+// utils/html.js —— HTML 文本转义（P2 去重，原 downloader.escapeHtml）
 "use strict";
 
 function escapeHtml(s) {
