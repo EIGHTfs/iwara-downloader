@@ -139,3 +139,88 @@ test("smoke: server/config 可 require（含 readConfig）", () => {
   assert.equal(typeof cfg.readConfig, "function");
   assert.equal(typeof cfg.readGame === "function" || true, true);
 });
+
+// ---- 路由（框架 route-core / route-registry）----
+const { createRegistry } = require("../server/framework/route-registry");
+const routeCore = require("../server/framework/route-core");
+
+test("route: 精确匹配与未命中", () => {
+  const r = createRegistry();
+  r.route("GET", "/api/videos", () => {});
+  assert.equal(typeof r.match("GET", "/api/videos"), "function");
+  assert.equal(r.match("GET", "/api/nope"), null);
+  assert.equal(r.match("POST", "/api/videos"), null, "方法不符不命中");
+});
+
+test("route: 公开与鉴权路由分离", () => {
+  const r = createRegistry();
+  r.routePublic("POST", "/api/login", () => {});
+  r.route("GET", "/api/videos", () => {});
+  assert.equal(typeof r.matchPublic("POST", "/api/login"), "function");
+  assert.equal(r.matchPublic("GET", "/api/videos"), null, "鉴权路由不出现在公开集");
+  assert.equal(r.match("POST", "/api/login"), null, "公开路由不出现在鉴权集");
+});
+
+test("route: \"*\" method 通配", () => {
+  const r = createRegistry();
+  r.routePublic("*", "/api/status", () => {});
+  assert.equal(typeof r.matchPublic("GET", "/api/status"), "function");
+  assert.equal(typeof r.matchPublic("POST", "/api/status"), "function");
+  assert.equal(typeof r.matchPublic("DELETE", "/api/status"), "function");
+});
+
+test("route: 数组 method（GET,HEAD）", () => {
+  const r = createRegistry();
+  r.route(["GET", "HEAD"], "/api/thumb", () => {});
+  assert.equal(typeof r.match("GET", "/api/thumb"), "function");
+  assert.equal(typeof r.match("HEAD", "/api/thumb"), "function");
+  assert.equal(r.match("POST", "/api/thumb"), null);
+});
+
+test("route: RegExp 路径（/avatar/ 前缀）", () => {
+  const r = createRegistry();
+  r.routePublic(["GET", "HEAD"], /^\/avatar\//, () => {});
+  assert.equal(typeof r.matchPublic("GET", "/avatar/1.jpg"), "function");
+  assert.equal(r.matchPublic("GET", "/api/x"), null);
+});
+
+test("route: RegExp 带 g 标志连续匹配不失配（lastIndex 已归零）", () => {
+  const re = /api/g;
+  for (let i = 0; i < 5; i++) {
+    assert.equal(routeCore.matchPath(re, "/api/x"), true, "第 " + (i + 1) + " 次匹配应命中");
+  }
+});
+
+test("route: 同路径重复注册先注册先赢", () => {
+  const r = createRegistry();
+  const first = () => "first";
+  r.route("GET", "/api/x", first);
+  r.route("GET", "/api/x", () => "second");
+  assert.equal(r.match("GET", "/api/x"), first);
+});
+
+test("route: 非法注册抛出而非静默", () => {
+  const r = createRegistry();
+  assert.throws(() => r.route("GET", "", () => {}), /注册失败/);
+  assert.throws(() => r.route("GET", "/x", "not-a-function"), /注册失败/);
+});
+
+test("route: 默认不捕获异常（与既有行为一致）", () => {
+  const r = createRegistry();
+  const wrapped = r.wrap(() => { throw new Error("boom"); }, "GET", "/x");
+  assert.throws(() => wrapped(), /boom/);
+});
+
+test("route: 传 onError 时捕获并回调", () => {
+  let seen = null;
+  const r = createRegistry({ onError: (err, info) => { seen = info; } });
+  const wrapped = r.wrap(() => { throw new Error("boom"); }, "GET", "/x");
+  wrapped();
+  assert.deepEqual(seen, { method: "GET", path: "/x" });
+});
+
+test("route: compilePattern 编译 :param 为具名捕获", () => {
+  const re = routeCore.compilePattern("/api/games/:id");
+  assert.equal(re.exec("/api/games/123").groups.id, "123");
+  assert.equal(re.test("/api/games/123/extra"), false);
+});
