@@ -1,6 +1,6 @@
 // ============================================================
-// iwara-downloader - 非热路径异步 IO 封装（P4，参照 gbmd utils/fs-async.js）
-// 热路径（downloader 下载循环、iwara-api 请求）留 sync，不经过本模块
+// gbmd - 非热路径异步 IO 封装（P4）
+// 热路径（downloader prepareMod/moveDirTo）留 sync，不经过本模块
 // ============================================================
 "use strict";
 
