@@ -8,10 +8,10 @@ require("./helpers/test-log.cjs");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const httpUtils = require("../server/utils/http");
-const pathSafe = require("../server/utils/path-safe");
-const fsAsync = require("../server/utils/fs-async");
-const htmlUtils = require("../server/utils/html");
+const httpUtils = require("../server/framework/http-utils");
+const pathSafe = require("../server/framework/path-safe");
+const fsAsync = require("../server/framework/fs-async");
+const htmlUtils = require("../server/framework/html-utils");
 
 // ---- http.parseCredentialText（iwara 三字段）----
 test("http: parseCredentialText 解析三字段组合文本", () => {
@@ -118,7 +118,7 @@ test("fs-async: readText/writeText 往返", async () => {
 
 // ---- CJS 强制冒烟：server 模块可被 require ----
 test("smoke: cjs-bootstrap 后 server/lib/app-log 可 require", () => {
-  const appLog = require("../server/lib/app-log");
+  const appLog = require("../server/framework/app-log");
   assert.equal(typeof appLog.install, "function");
   assert.equal(typeof appLog.apiLine, "function");
 });

@@ -3,15 +3,15 @@
 // 背景：父目录（DSH 检出根）package.json 是 "type":"module"，直接 node server/app.js
 //   会被当成 ESM 而 require 失效。禁止为此写本地 package.json；.cjs 永远是 CJS。
 //   只劫持本项目根内的 .js，项目外仍走 Node 原逻辑。
-// 重构纪律：本文件是 boot.cjs 与 test 的共同依赖——搬文件时不要破坏 PROJECT_ROOT 计算。
+// 重构纪律：本文件是 boot.cjs 与 test/helpers 的共同依赖——搬文件时不要破坏 PROJECT_ROOT 计算。
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
 const Module = require("module");
 
-// server/lib/ → 上两级 = 项目根（iwara-downloader/）
-// 项目根下所有 .js（server/、server/routes/、server/utils/、server/lib/）都强制 CJS。
+// server/framework/ → 上两级 = 项目根（iwara-downloader/）
+// 项目根下所有 .js（server/、server/routes/、server/lib/、server/framework/）都强制 CJS。
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const origJs = Module._extensions[".js"];
 

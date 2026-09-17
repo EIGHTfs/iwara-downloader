@@ -1,7 +1,7 @@
 // test/helpers/test-log.cjs —— 测试基建助手（每个测试文件首行 require 它）
 // 1) 应用 CJS 强制（cjs-bootstrap），使 server/*.js 可被 require
 // 2) 提供日志：每个测试文件留一份 log 到 test/logs/<名>.log，记录每用例 PASS/FAIL
-require("../../server/lib/cjs-bootstrap.cjs");
+require("../../server/framework/cjs-bootstrap.cjs");
 
 "use strict";
 const fs = require("fs");

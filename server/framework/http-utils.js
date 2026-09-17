@@ -90,11 +90,34 @@ function readBody(req, limit = BODY_SIZE_LIMIT) {
   return req._bodyPromise;
 }
 
+/**
+ * 解析油猴脚本自动复制的组合凭证文本：
+ *   Cookie=...\nToken=...\nAccessToken=...
+ * 返回 { cookie, token, accessToken }，未命中的字段为 null；
+ * 若文本不含任何组合字段行，返回 null（视为纯 Cookie 串）。
+ *
+ * 字段支持取各项目并集：
+ *   - Cookie      两项目通用
+ *   - Token       iwara 刷新令牌
+ *   - AccessToken iwara 访问令牌
+ * 只用 Cookie 的项目（gbmd）拿到的 cookie 值与原来一致，多出的字段为 null。
+ */
 function parseCredentialText(text) {
   if (typeof text !== "string" || !text.trim()) return null;
-  const cookieLine = text.split(/\r?\n/).find((line) => line.startsWith("Cookie="));
-  if (!/(^|\n)(Cookie)=/.test("\n" + text)) return null;
-  return { cookie: cookieLine ? cookieLine.slice("Cookie=".length).trim() : "" };
+  const keys = ["Cookie", "Token", "AccessToken"];
+  const get = (key) => {
+    const line = text.split(/\r?\n/).find((l) => l.startsWith(key + "="));
+    if (!line) return null;
+    return line.slice(key.length + 1).trim();
+  };
+  const hit = new RegExp("(^|\\n)(" + keys.join("|") + ")=").test("\n" + text);
+  if (!hit) return null; // 不是组合文本
+  const out = {};
+  for (const k of keys) {
+    const v = get(k);
+    out[k === "Cookie" ? "cookie" : k === "Token" ? "token" : "accessToken"] = v;
+  }
+  return out;
 }
 
 function cleanCookie(raw) {
