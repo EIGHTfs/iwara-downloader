@@ -23,7 +23,7 @@ const path = require("path");
 
 const crypto = require("crypto");
 const SCHEMA = "iwara-index/1";
-const jsonDir = require("./json-dir");
+const jsonDir = require("../framework/json-dir");
 const CATALOG_NAME = "iwara-index.json";
 const DATA_DIR = jsonDir.SERVER_DIR;
 const JSON_DIR = jsonDir.JSON_DIR;

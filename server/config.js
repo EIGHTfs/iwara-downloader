@@ -9,7 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 // 数据目录：Electron 打包后经 GBMD_DATA_DIR 重定向，默认本项目 server/
-const jsonDir = require("./lib/json-dir");
+const jsonDir = require("./framework/json-dir");
 const DATA_DIR = jsonDir.SERVER_DIR;
 // config.json 例外：留在 server/。用户原话：「config.json是例外本来就应该在server文件夹」
 const CONFIG_FILE = path.join(DATA_DIR, "config.json"); //userdata-manifest.json file server/config.json 服务配置（例外留在 server/）

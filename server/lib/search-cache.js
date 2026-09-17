@@ -10,7 +10,7 @@ const path = require("path");
 const api = require("./iwara-api");
 const thumbCache = require("./thumb-cache.cjs");
 
-const jsonDir = require("./json-dir");
+const jsonDir = require("../framework/json-dir");
 const profileIndex = require("./profile-index");
 const QUERY_FILE = jsonDir.migrateRuntimeJson("search_task.json"); //userdata-manifest.json file json/search_task.json 搜索任务状态
 const CACHE_FILE = jsonDir.migrateRuntimeJson("search_cache.json"); //userdata-manifest.json file json/search_cache.json 搜索记录缓存

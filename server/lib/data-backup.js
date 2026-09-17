@@ -12,7 +12,7 @@ const path = require("path");
 const os = require("os");
 const { execFile } = require("child_process");
 
-const jsonDir = require("./json-dir");
+const jsonDir = require("../framework/json-dir");
 const APP_ROOT = path.join(__dirname, "..", "..");
 const APP_NAME = "iwara-downloader-server";
 const MANIFEST_FILE = jsonDir.jsonFile("userdata-manifest.json");
