@@ -30,7 +30,7 @@ const thumbCache = require("./lib/thumb-cache.cjs");
 const profileIndex = require("./lib/profile-index");
 
 const { sendJson, readBody, parseCredentialText } = require("./framework/http-utils");
-const { isDeniedBrowseDir, isSystemJunkName } = require("./lib/path-safe");
+const { isDeniedBrowseDir, isSystemJunkName } = require("./framework/path-safe");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 const MIME = {
