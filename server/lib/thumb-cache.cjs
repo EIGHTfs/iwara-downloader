@@ -9,8 +9,10 @@ const path = require("path");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
 const api = require("./iwara-api");
+const jsonDir = require("../framework/json-dir");
 
-const DATA_DIR = process.env.GBMD_DATA_DIR || path.join(__dirname, "..");
+// 数据目录统一由框架层 json-dir 提供（env DATA_DIR 重定向），本文件不再自行读环境变量
+const DATA_DIR = jsonDir.SERVER_DIR;
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
 const THUMB_DIR = path.join(DATA_DIR, "thumbs"); //userdata-manifest.json dir server/thumbs .jpg 本机封面缓存 thumbs/<id>.jpg
 const inflight = new Map();

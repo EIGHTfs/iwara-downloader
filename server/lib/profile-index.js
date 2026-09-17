@@ -7,7 +7,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const jsonDir = require("./json-dir");
+const jsonDir = require("../framework/json-dir");
 
 const PROFILE_DIR = path.join(jsonDir.JSON_DIR, "profile"); //userdata-manifest.json dir json/profile .json 作者信息索引
 const CATALOG = path.join(PROFILE_DIR, "iwara-profile.json");

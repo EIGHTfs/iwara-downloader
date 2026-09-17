@@ -22,7 +22,7 @@ const videoIndex = require("./video-index");
 const deviceCheck = require("./device-check");
 const thumbCache = require("./thumb-cache.cjs");
 
-const jsonDir = require("./json-dir");
+const jsonDir = require("../framework/json-dir");
 const profileIndex = require("./profile-index");
 const DATA_DIR = jsonDir.SERVER_DIR;
 const TASK_FILE = jsonDir.migrateRuntimeJson("download_task.json"); //userdata-manifest.json file json/download_task.json 下载任务列表
