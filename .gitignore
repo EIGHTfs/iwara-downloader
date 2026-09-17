@@ -1,6 +1,5 @@
-# 运行态 JSON 在仓库根 json/（清单 json/userdata-manifest.json 入库）
+# 运行态 JSON 在仓库根 json/（清单 json/userdata-manifest.json 由导出时自动生成，不入库）
 json/*.json
-!json/userdata-manifest.json
 json/index/
 json/profile/
 avatar/
