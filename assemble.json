@@ -1,4 +1,13 @@
 {
+  "_comment": [
+    "assemble.json —— 从模板取哪些文件到本项目",
+    "  键 = 模板内相对路径（以 / 结尾 = 整目录拷贝）",
+    "  值 = 本项目内相对路径（相对项目根）",
+    "  以 _ 开头的键仅供阅读，解析器会忽略（可放任意说明）",
+    "  init: false = 不初始化蓝图骨架（项目自带 app.js / config）",
+    "",
+    "  用法：../dl-server-template/setup.sh iwara --to ./server"
+  ],
   "files": {
     "server/framework/": "server/framework/",
     "server/project/blueprint/login.html": "server/public/login.html",
