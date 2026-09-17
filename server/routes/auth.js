@@ -13,12 +13,12 @@ module.exports = function register(api) {
     const body = await readBody(req);
     const c = cfg.readConfig();
     if (!c.passwordHash) {
-      const token = auth.createSession(c.sessionHours || 72);
+      const { token } = auth.createSession({ hours: c.sessionHours || 72 });
       setSessionCookie(res, token);
       return sendJson(res, 200, { ok: true, noPassword: true, message: "未设置访问密码，可直接使用" });
     }
     if (cfg.verifyPassword(body.password || "", c.passwordHash, c.passwordSalt)) {
-      const token = auth.createSession(c.sessionHours || 72);
+      const { token } = auth.createSession({ hours: c.sessionHours || 72 });
       setSessionCookie(res, token);
       return sendJson(res, 200, { ok: true });
     }
@@ -28,7 +28,7 @@ module.exports = function register(api) {
   // POST /api/logout（公开）
   routePublic("POST", "/api/logout", async (req, res) => {
     auth.destroySession(auth.extractToken(req));
-    res.setHeader("Set-Cookie", "session=; Path=/; HttpOnly; Max-Age=0");
+    res.setHeader("Set-Cookie", `${auth.cookieName()}=; Path=/; HttpOnly; Max-Age=0`);
     return sendJson(res, 200, { ok: true });
   });
 
