@@ -85,3 +85,4 @@ docs/iwara-重构进度.md
 
 # 安全删除回收站
 .trash/
+node_modules.orig/

@@ -1177,6 +1177,8 @@ function bindSettings() {
   bindSettingsIndex();
   bindSettingsRename();
   bindSettingsData();
+  // 自动更新卡片：公共模块（blueprint/auto-update-card.js，与本模板系其它项目共用）
+  if (window.AutoUpdateCard) window.AutoUpdateCard.mount();
 }
 
 // aria2 同机判断徽标 + 文件名模板 {ID} 校验
