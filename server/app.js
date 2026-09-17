@@ -17,7 +17,10 @@ const appLog = require("./framework/app-log");
 // iwara 特有高频轮询端点静默（封面缓存与播放页轮询，避免日志刷屏）
 appLog.install({ quietApis: ["/api/thumb", "/api/play", "/api/play-info"] });
 const cfg = require("./config");
-const auth = require("./auth");
+const auth = require("./framework/auth");
+// 会话持久化到 json/sessions.json，cookie 名沿用 session（兼容既有前端与已登录用户）
+auth.init({ sessionFile: require("./framework/json-dir").jsonFile("sessions.json"), cookieName: "session" });
+auth.startCleanup();
 const iwaraApi = require("./lib/iwara-api");
 const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
@@ -138,7 +141,7 @@ function playHint(id) {
 function setSessionCookie(res, token) {
   const cfgNow = cfg.readConfig();
   const maxAge = (cfgNow.sessionHours || 72) * 3600;
-  res.setHeader("Set-Cookie", `session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
+  res.setHeader("Set-Cookie", `${auth.cookieName()}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
 }
 
 function requireAuth(req) {
@@ -332,7 +335,7 @@ const server = http.createServer(async (req, res) => {
   cfgNow.port = finalPort;
   cfg.writeConfig(cfgNow);
 
-  auth.loadSessions();
+  // 会话已在模块加载时由 auth.init() 从 json/sessions.json 恢复，此处无需再加载
   downloader.restorePendingTask();
   search.restorePendingQuery();
 
