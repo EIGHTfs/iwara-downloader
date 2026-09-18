@@ -168,9 +168,10 @@ function playHint(id) {
   };
 }
 
-function setSessionCookie(res, token) {
+// hours 显式传入时用它（勾选「记住此设备」签长会话），否则回落到 config.sessionHours
+function setSessionCookie(res, token, hours) {
   const cfgNow = cfg.readConfig();
-  const maxAge = (cfgNow.sessionHours || 72) * 3600;
+  const maxAge = (hours != null ? hours : (cfgNow.sessionHours || 72)) * 3600;
   res.setHeader("Set-Cookie", `${auth.cookieName()}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
 }
 
