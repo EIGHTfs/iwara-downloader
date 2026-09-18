@@ -5,3 +5,8 @@
 # 注意：`vendor/` 这种「忽略整个目录」写法下，`!某文件` 无法恢复
 #       （git 不会进入已忽略目录去匹配）；要恢复必须用 `vendor/*` 写法。
 server/public/vendor/
+
+# 油猴脚本（Tampermonkey userscript）：单文件 IIFE 形态，全脚本一体，
+# 函数长度/圈复杂度/变量名等规则必然误报；且通过 API 与页面交互，
+# 静态检查无法还原运行期绑定。与 server/public/app.js 同源，仅打包形态不同。
+scripts/iwara-cred-fetch.user.js
