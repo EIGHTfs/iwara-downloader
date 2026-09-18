@@ -4,4 +4,3 @@
   width: 56px; height: 56px; object-fit: cover; border-radius: 6px;
   border: 1px solid var(--border); margin-left: 8px;
 }
-.mm-retry-btn, .mm-skip-btn { padding: 2px 8px; font-size: 12px; }

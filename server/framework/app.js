@@ -123,6 +123,44 @@ async function dispatchRoutes(req, res, url, pathname, routes, ctx) {
  *                                         命中请求返回拼装结果，片段改动后下一次请求自动重拼
  * @param {function} [opts.onReady]      - 启动回调 (port)
  */
+/**
+ * 给 http server 挂上 drain()：停止接收新连接，等在途响应写完再 resolve。
+ * 自动更新重启前调用，避免硬退出让浏览器收到截断的 CSS/HTML
+ *   （表现为「刚更新完页面样式不对，刷新几次又好了」）。
+ * 做法：跟踪每条连接的活跃请求数，全部归零即放行；server.close() 的回调
+ *   负责等已有连接自然关闭。
+ */
+function enableGracefulDrain(server) {
+  const sockets = new Set();
+  server.on("connection", (socket) => {
+    socket._activeReqs = 0;
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  // finish/close 都会触发，用 max(0) 防重复递减后变负
+  const dec = (socket) => {
+    if (socket) socket._activeReqs = Math.max(0, (socket._activeReqs || 0) - 1);
+  };
+  server.on("request", (req, res) => {
+    const socket = req.socket;
+    if (socket) socket._activeReqs = (socket._activeReqs || 0) + 1;
+    res.on("finish", () => dec(socket));
+    res.on("close", () => dec(socket));
+  });
+
+  server.drain = () => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; resolve(); };
+    try { server.close(finish); } catch (_) { finish(); }
+    const timer = setInterval(() => {
+      for (const sk of sockets) if ((sk._activeReqs || 0) > 0) return;
+      clearInterval(timer);
+      finish();
+    }, 50);
+    if (timer.unref) timer.unref();
+  });
+}
+
 function createServer(opts) {
   const {
     config, auth, publicDir, routes = [],
@@ -194,6 +232,7 @@ function createServer(opts) {
   }
 
   const server = http.createServer(handleRequest);
+  enableGracefulDrain(server);
   // 端口解析：显式 port > config.get(key)（createConfig 风格）> config.readConfig()[key]（项目自研风格）
   const cfgPort = typeof config.get === "function"
     ? config.get("port")

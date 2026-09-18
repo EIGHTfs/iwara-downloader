@@ -1491,9 +1491,9 @@ function formatIwaraLoginBlock(r) {
 }
 
 function updateIwaraUserBadge(r) {
-  const el = $("#iwaraUserBadge");
-  const nameEl = $("#iwaraUserName");
-  const remainEl = $("#iwaraUserRemain");
+  const el = $("#UserBadge");
+  const nameEl = $("#UserName");
+  const remainEl = $("#UserRemain");
   if (!el) return;
   const setStack = (name, remain, cls) => {
     if (nameEl) nameEl.textContent = name;

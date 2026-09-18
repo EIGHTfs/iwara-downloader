@@ -203,6 +203,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.1 | 同步模板 1.5.0：①顶栏徽章元素 id 由 `iwaraUserBadge` 统一为 `UserBadge`（`topbar/badge.html` + `app.js` 三处选择器）；②修复 `topbar/userscript.html` 里「安装油猴脚本」按钮样式——按钮类名与 `style.css` 对不上，改为 `ghost hbtn` 后恢复顶栏按钮外观；③框架 `app.js` 新增 `server.drain()` 优雅关停：自动更新重启前等在途响应写完，避免静态资源被截断；④`auto-update` 复制新版本期间挂起文件监听，避免复制途中的中间态触发误重启 |
 | 1.7.0 | **顶栏品牌区改由通用框架 + 品牌配置生成**：`topbar/brand.html` 原硬编码 `iwara-logo.png` / `alt="Iwara"`，绕过了框架的品牌占位符机制（登录页早已用 `@brand:`，顶栏却没有，同一页面两套做法）。现改为 `@brand:logo@` / `@brand:title@` / `@brand:displayTitle@` 取值，`brand.json` 新增 `displayTitle` 键承载顶栏三行标题。`topbar/time.html` 同时归位通用层（原为与 gbmd 逐字相同的重复副本）。另移除代码注释里的「AI 思路：」前缀 |
 | 1.6.0 | **修复页面完全失去样式**：静态服务只对 `.html` 走片段组装，`style.css` 被漏掉——产物里 `style.css` 只保留 19 条 `@frag:` 指令（942 字节），浏览器拿到的是指令文本而非样式，页面 HTML 结构正常但渲染为纯文本。判据改用组装清单（`assembler.list()`）而非扩展名，展开后 11747 字节、指令零残留。版本号注入仍只对 HTML 生效 |
 | 1.5.0 | **修复 `/api/download` 与 `/api/receive` 报 `parseDownloadItems is not a function`**（路由拆分时函数定义被删、调用处保留，油猴「发送到服务器」全程不可用）；**修复服务启动即崩**（`PUBLIC_DIR` 声明在 `loadFragmentAssembler()` 调用之后，触发 TDZ `ReferenceError`）；登录路由归位框架层（`framework/routes-auth.js`），`routes/auth.js` 只留项目专属的 `/api/token`；`aria2Dns` 默认值改为留空（不再写死某台机器的内网 DNS）；`githubRepo` 移出默认配置，改由 `lib/auto-update.js` 的 `defaultRepo` 提供，用户仍可在 `config.json` 覆盖 |

@@ -384,6 +384,39 @@ const server = http.createServer(async (req, res) => {
     // 状态回调：内部 _log 已打印
   });
 
+  // 优雅关停：自动更新重启前调用，停止接收新连接并等待在途响应写完。
+  //   静态资源带 Content-Length，硬退出会让浏览器收到截断响应（表现为「更新后
+  //   样式不对，刷新几次又好了」）。这里跟踪每条连接的活跃请求数，全部归零或
+  //   超时后再放行退出。
+  {
+    const sockets = new Set();
+    server.on("connection", (socket) => {
+      socket._activeReqs = 0;
+      sockets.add(socket);
+      socket.on("close", () => sockets.delete(socket));
+    });
+    server.on("request", (req, res) => {
+      const socket = req.socket;
+      if (socket) socket._activeReqs = (socket._activeReqs || 0) + 1;
+      res.on("finish", () => { if (socket) socket._activeReqs = Math.max(0, socket._activeReqs - 1); });
+      res.on("close", () => { if (socket) socket._activeReqs = Math.max(0, socket._activeReqs - 1); });
+    });
+
+    autoUpdate.setShutdownHook(() => new Promise((resolve) => {
+      let settled = false;
+      const finish = () => { if (settled) return; settled = true; resolve(); };
+      // 1) 停止接受新连接（keep-alive 空闲连接会被 Node 关闭）
+      try { server.close(finish); } catch (_) { finish(); }
+      // 2) 等在途请求写完：每 50ms 查一次，全部空闲即放行
+      const timer = setInterval(() => {
+        let busy = 0;
+        for (const sk of sockets) if ((sk._activeReqs || 0) > 0) busy++;
+        if (busy === 0) { clearInterval(timer); finish(); }
+      }, 50);
+      if (timer.unref) timer.unref();
+    }));
+  }
+
   server.listen(finalPort, "0.0.0.0", () => {
     console.log("==============================================");
     console.log("iwara-downloader-server 已启动");
