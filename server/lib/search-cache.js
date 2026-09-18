@@ -73,7 +73,9 @@ function saveQueryTask() {
     if (t) delete t.abortCtl;
     jsonDir.ensureJsonDir();
     fs.writeFileSync(QUERY_FILE, JSON.stringify(t, null, 2), "utf8");
-  } catch (_) {}
+  } catch (e) {
+    console.error("[search-cache] 查询任务写入失败，状态未持久化:", e && e.message || e);
+  }
 }
 
 function saveCache(explicit) {
@@ -87,13 +89,18 @@ function saveCache(explicit) {
     };
     jsonDir.ensureJsonDir();
     fs.writeFileSync(CACHE_FILE, JSON.stringify(data), "utf8");
-  } catch (_) {}
+  } catch (e) {
+    console.error("[search-cache] 搜索结果写入失败，缓存未持久化:", e && e.message || e);
+  }
 }
 
 function loadQueryTaskFromDisk() {
   try {
     if (fs.existsSync(QUERY_FILE)) queryTask = JSON.parse(fs.readFileSync(QUERY_FILE, "utf8"));
-  } catch (_) {}
+  } catch (e) {
+    // 文件不存在属正常；损坏则说明上次写入被截断，需留痕（否则表现为「任务莫名消失」）
+    console.error("[search-cache] 查询任务读取/解析失败，按空状态处理:", e && e.message || e);
+  }
   return queryTask;
 }
 
