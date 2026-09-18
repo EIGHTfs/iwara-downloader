@@ -18,7 +18,7 @@ SERVER_DIR="$ROOT/server"
 PID_FILE="$ROOT/${PROJECT_NAME}.pid"
 LOG_FILE="$SERVER_DIR/server.log"
 CONFIG_FILE="$SERVER_DIR/config.json"
-DEFAULT_PORT="${DEFAULT_PORT:-8643}"
+DEFAULT_PORT="${DEFAULT_PORT:-8642}"
 LOG_ROTATE_BYTES=$((10 * 1024 * 1024))
 STOP_WAIT_SEC=10
 START_WAIT_SEC="${START_WAIT_SEC:-15}"   # 启动前等端口释放的上限（秒）
@@ -50,8 +50,13 @@ legacy_pid_files() {
 export PATH="$ROOT/tool/node/bin:/usr/local/bin:/opt/homebrew/bin:/opt/node/bin:/var/packages/Node.js_v24/target/usr/local/bin:/var/packages/Node.js_v22/target/usr/local/bin:/var/packages/Node.js_v20/target/usr/local/bin:$PATH"
 export FFMPEG="${FFMPEG:-$ROOT/tool/ffmpeg}"
 
+# ---------- Node 定位 ----------
+# start.sh 是「独立可搬运」脚本：它会被直接拷进项目根，而项目里没有 scripts/。
+# 因此这里内联定位逻辑，不 source 外部文件——否则换了环境就找不到 node
+# （表现为脚本刚启动就报 lib-node.sh 不存在）。
+# 候选顺序与 scripts/lib-node.sh 保持一致，改一处要同步改另一处。
 find_node() {
-  local c
+  local c nvm
   for c in \
     "$ROOT/tool/node/bin/node" \
     /usr/local/bin/node \
@@ -65,7 +70,6 @@ find_node() {
     if [ -x "$c" ]; then NODE_BIN="$c"; return 0; fi
     if command -v "$c" >/dev/null 2>&1; then NODE_BIN="$(command -v "$c")"; return 0; fi
   done
-  local nvm
   for nvm in "$HOME"/.nvm/versions/node/*/bin/node; do
     if [ -x "$nvm" ]; then NODE_BIN="$nvm"; return 0; fi
   done

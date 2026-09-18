@@ -285,7 +285,7 @@ A: 常见原因：① 直链过期（必须每次重新获取，不要复用旧 
 A: 不会。`server/config.json` 已 gitignore。仓库只有空凭证的 `config.example.json`。
 
 **Q: GitHub 推送凭据放哪？**  
-A: 项目根 `.git-push-token`（一行 token，已 gitignore）。推送：`bash scripts/git-push.sh`。
+A: 由 dsh-git-push 插件托管，无需在项目里放 token 文件。
 
 ---
 
