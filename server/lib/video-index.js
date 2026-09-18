@@ -320,7 +320,7 @@ function findExistingById(root, id) {
       const full = path.join(dir, e.name);
       if (/\.(mp4|webm|mov|mkv|m4v)$/i.test(e.name)) return full;
       // 没下载完的 .part 文件也支持部分播放
-      // AI 思路：按 id 扫目录时完整文件优先；没有完整文件才回 .part（含 m3u8/flv 等扩展）
+      // 按 id 扫目录时完整文件优先；没有完整文件才回 .part（含 m3u8/flv 等扩展）
       if (/\.(mp4|webm|mov|mkv|m4v|m3u8|m3u|ts|flv|mpd)\.part$/i.test(e.name)) part = full;
     }
     return part;
@@ -440,7 +440,7 @@ function importPayload(root, raw) {
 // 扫描下载路径下所有 json 取 id，用 id 匹配封面与视频；
 //   不管视频名怎么变，只要 id 对得上就能找到；找不到的视频不显示在视频列表
 //
-// AI 思路：之前 listCatalog 直接读 iwara-index.json 总表返回，
+// listCatalog 直接读 iwara-index.json 总表返回时，
 //   不验证视频文件是否存在——总表有 ID 但视频被删/改名/没下完照样显示，点开播不了。
 //   现在改为：① 扫下载目录所有 JSON → ② 解析出 ID → ③ 用 ID 找视频文件 → ④ 没视频跳过。
 //   视频文件名任意变，只要文件名含 [id] 就能匹配（findExistingById）。

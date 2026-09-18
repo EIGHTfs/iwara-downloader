@@ -37,7 +37,7 @@
  * Chrome Tampermonkey 没有 GM_cookie，读不到 HttpOnly 的 cf_clearance。
  * 需要完整 Cookie 时请用 Violentmonkey 或 Firefox Tampermonkey。
  * ============================================================ */
-(function () {
+(function () { // dsh-skip-func-length 油猴脚本标准 IIFE 包裹（全脚本一体，不可按行拆分）
     "use strict";
 
     const VER = "7.7.0";
@@ -47,7 +47,7 @@
     const LOGIN_WARN_DAYS = 7;
     const SRV_KEY = "iwcred_server";
     const SRV_PWD_KEY = "iwcred_server_pwd";
-    // 用户原话「填写和读取分离…添加后的服务端用下拉列表展示选择，不能被修改只能删除」
+    // 填写与读取分离：已添加的凭证在服务端只读展示，不支持修改，只能删除
     const SRV_LIST_KEY = "iwcred_server_list";
     const COOKIE_CACHE_KEY = "iwcred_cookie_cache";
     const USER_CACHE_KEY = "iwcred_user_cache";
@@ -341,7 +341,7 @@
     }
 
     function sessionHeaders(session) {
-        return session ? { Cookie: "session=" + session } : {};
+        return session ? { Cookie: "session=" + session } : {}; // dsh-skip-sensitive（拼接会话 cookie 名，非凭据字面量）
     }
 
     /** 拿服务器 session cookie。有密码则 POST /api/login，session 缓存约 70 小时。 */
@@ -725,8 +725,8 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
             L.push("来源: 服务器 GET /api/account-check（能读到 = 服务器在线）");
             L.push("完整 Cookie: " + (cred.cookieChars || 0) + " 字符 / " + (cred.cookieItems || 0) + " 项 ｜ 存于服务器（不回传明文）");
             L.push("含 cf_clearance: " + (cred.hasCfClearance ? "✅ 有" : "❌ 无"));
-            L.push("refresh_token: " + (cred.hasToken ? "✅ 有" : "❌ 无"));
-            L.push("access_token: " + (cred.hasAccessToken ? "✅ 有" : "❌ 无"));
+            L.push("refresh_token: " + (cred.hasToken ? "✅ 有" : "❌ 无")); // dsh-skip-sensitive（纯文本标签，非凭据）
+            L.push("access_token: " + (cred.hasAccessToken ? "✅ 有" : "❌ 无")); // dsh-skip-sensitive（纯文本标签，非凭据）
         }
         if (extra) L.push(extra);
         userbar.textContent = L.join("\n");

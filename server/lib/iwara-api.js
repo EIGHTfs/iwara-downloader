@@ -36,9 +36,10 @@ const X_VERSION_SECRET = "mSvL05GfEmeEmsEYfGCnVpEjYgTJraJN"; // dsh-skip-sensiti
 // CF 的 bot 检测对常见抓包 UA 反而更警惕。
 const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0 Safari/537.36";
-// Cloudflare 边缘 IP：不写死，从 config.json 的 iwaraCfgIp 读取（默认 104.26.12.12）。
+// Cloudflare 边缘 IP：从 config.json 的 iwaraCfgIp 读取（默认 104.26.12.12）。
 // Virtual Hosts APK 原理：本地 DNS 拦截 → 命中规则返回固定 IP → 应用层直连该 IP
 // 这里在应用层做同样的事：跳过系统 DNS（防污染），用 IP 直连 + SNI/Host header
+// 兜底 IP 必须保留：留空时若改为按域名解析，会失去防 DNS 污染能力，功能不可用
 function getCfIp() {
   const v = String(cfg.readConfig().iwaraCfgIp || "").trim();
   return v || "104.26.12.12";

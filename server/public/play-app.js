@@ -3,7 +3,7 @@
 "use strict";
 
 // ═══ 播放地址：/{id} ═══
-// 需求：地址栏应只显示短链形式 http://sa6400.local:28463/lwpDY67t95gnCK，而不是含 play.html#id= 的长链 http://sa6400.local:28463/play.html#id=lwpDY67t95gnCK
+// 需求：地址栏应只显示短链形式 http://nas.local:28463/lwpDY67t95gnCK，而不是含 play.html#id= 的长链 http://nas.local:28463/play.html#id=lwpDY67t95gnCK
 // 【原代码】#id= / ?id= / play.html#id=
 // 【改为】pathname 第一段就是 id；旧链接 replaceState 成 /{id}。切视频 pushState，不整页刷新。
 function getIdFromPath() {

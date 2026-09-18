@@ -12,6 +12,7 @@ const htmlUtils = require("./html-utils");
 const appLog = require("./app-log");
 const jsonDir = require("./json-dir");
 const auth = require("./auth");
+const routesAuth = require("./routes-auth");
 const { createBackup } = require("./data-backup");
 const { createAutoUpdate } = require("./auto-update");
 const markerManifest = require("./marker-manifest");
@@ -40,4 +41,5 @@ module.exports = {
   appLog,
   jsonDir,
   auth,
+  routesAuth,
 };
