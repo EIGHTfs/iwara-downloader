@@ -39,7 +39,10 @@ function persist() {
   try {
     fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
     fs.writeFileSync(SESSION_FILE, JSON.stringify(Object.fromEntries(sessions), null, 2));
-  } catch (_) { /* 写盘失败不影响内存会话 */ }
+  } catch (e) {
+    // 内存会话仍可用，但重启后会丢失——必须留痕，否则表现为「无缘无故要求重新登录」
+    console.error("[auth] 会话写入失败，重启后将丢失登录态:", e && e.message || e);
+  }
 }
 
 function createSession(opts = {}) {
