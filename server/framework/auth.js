@@ -9,6 +9,7 @@ const fs = require("fs");
 
 let SESSION_FILE = null;
 let COOKIE_NAME = "token";   // 会话 cookie 名（init 可覆盖，兼容旧项目用 session）
+let FALLBACK_HOURS = 72;     // setSessionCookie 未显式传 hours 时的兜底（init 可覆盖）
 let cleanupTimer = null;
 const sessions = new Map(); // token -> { expiresAt, hours, deviceId }
 
@@ -21,6 +22,7 @@ const sessions = new Map(); // token -> { expiresAt, hours, deviceId }
 function init(opts = {}) {
   SESSION_FILE = opts.sessionFile || null;
   if (opts.cookieName) COOKIE_NAME = opts.cookieName;
+  if (opts.fallbackHours) FALLBACK_HOURS = opts.fallbackHours;
   if (!SESSION_FILE) return;
   try {
     const data = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
@@ -110,7 +112,29 @@ function loadSessions() {
   return sessions.size;
 }
 
+/**
+ * 写会话 cookie。Max-Age 与 session 有效期保持一致，避免出现
+ * 「服务端会话还在、cookie 已过期」或反之的错位。
+ * @param {object} res    http 响应对象
+ * @param {string} token  会话 token
+ * @param {number} [hours] 有效期（小时）；不传时用 opts.fallbackHours 或默认 72
+ */
+function setSessionCookie(res, token, hours) {
+  const h = hours != null ? hours : (FALLBACK_HOURS || 72);
+  const maxAge = h * 3600;
+  res.setHeader(
+    "Set-Cookie",
+    `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`
+  );
+}
+
+/** 清会话 cookie（登出用） */
+function clearSessionCookie(res) {
+  res.setHeader("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
 module.exports = {
   init, createSession, isValidSession, destroySession, extractToken,
   pruneExpired, loadSessions, startCleanup, stopCleanup, cookieName,
+  setSessionCookie, clearSessionCookie,
 };

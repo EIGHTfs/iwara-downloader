@@ -1,6 +1,6 @@
 // 封面缓存：按视频 id 落到项目目录 server/thumbs/<id>.jpg
 // 封面由后台扫描抽帧、前台直接读取；打开视频页时全部封面已就绪
-// AI 思路：启动后后台扫下载目录，tool/ffmpeg 抽 1s 处一帧写入 thumbs/。
+// 实现：启动后后台扫下载目录，tool/ffmpeg 抽 1s 处一帧写入 thumbs/。
 //   /api/thumb 只读已有 jpg，请求路径不抽帧。下载完成时顺手补一张。
 "use strict";
 

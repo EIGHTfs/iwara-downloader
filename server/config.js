@@ -11,7 +11,7 @@ const crypto = require("crypto");
 // 数据目录：Electron 打包后经 GBMD_DATA_DIR 重定向，默认本项目 server/
 const jsonDir = require("./framework/json-dir");
 const DATA_DIR = jsonDir.SERVER_DIR;
-// config.json 例外：留在 server/。用户原话：「config.json是例外本来就应该在server文件夹」
+// config.json 例外：留在 server/（配置文件属于服务端资产，不随 json/ 运行态数据迁移）
 const CONFIG_FILE = path.join(DATA_DIR, "config.json"); //userdata-manifest.json file server/config.json 服务配置（例外留在 server/）
 (function restoreConfigFromJsonDir() {
   const misplaced = jsonDir.jsonFile("config.json");
@@ -35,7 +35,7 @@ const DEFAULT_CONFIG = {
   // Cloudflare 边缘 IP（api.iwara.tv 泛解析后的直连目标；从配置读取，不写死在代码里）
   iwaraCfgIp: "104.26.12.12",
   // aria2 解析 *.iwara.tv 用的 DNS（群晖 DNS Server 套件；留空 = 不传 dns-server，走 aria2 系统 DNS）
-  aria2Dns: "10.10.10.64",
+  aria2Dns: "",
   // 下载后端：direct（Node 直连） | aria2
   downloadBackend: "direct",
   // 直连下载并发数
@@ -66,8 +66,9 @@ const DEFAULT_CONFIG = {
   playPublic: true,
   downloadToggles: { video: true, json: true },
   // 自动更新：watch=监控文件变更重启 / git=定时 git pull / github=定时从 GitHub 拉取
-  //   enabled=false 默认关；github 模式需 githubRepo；私有仓库才配 githubToken
-  autoUpdate: { enabled: false, mode: "watch", interval: 300, githubRepo: "EIGHTfs/iwara-downloader", githubBranch: "main", githubToken: "" }
+  //   enabled=false 默认关。github 模式的仓库不在默认配置里写死：
+  //   由 lib/auto-update.js 的 defaultRepo 提供，用户可在 config.json 覆盖 githubRepo
+  autoUpdate: { enabled: false, mode: "watch", interval: 300, githubBranch: "main", githubToken: "" }
 };
 
 const DEFAULT_FILE_NAME_TEMPLATE = "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]";

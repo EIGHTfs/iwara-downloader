@@ -34,7 +34,7 @@ async function aria2SameDevice(aria2Path) {
     // 能解析出来但都不在本机 → 跨设备
     return ips.length ? false : null;
   } catch (_) {
-    return null; // 解析不出来（如 sa6400.local 本机无记录）→ 无法判断
+    return null; // 解析不出来（如 nas.local 本机无记录）→ 无法判断
   }
 }
 

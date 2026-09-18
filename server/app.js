@@ -19,7 +19,13 @@ appLog.install({ quietApis: ["/api/thumb", "/api/play", "/api/play-info"] });
 const cfg = require("./config");
 const auth = require("./framework/auth");
 // 会话持久化到 json/sessions.json，cookie 名沿用 session（兼容既有前端与已登录用户）
-auth.init({ sessionFile: require("./framework/json-dir").jsonFile("sessions.json"), cookieName: "session" });
+// fallbackHours 让框架写 cookie 时与本项目 config.sessionHours 一致
+// （登录路由已按 remember 显式传 hours，这里只是未传时的兜底）
+auth.init({
+  sessionFile: require("./framework/json-dir").jsonFile("sessions.json"),
+  cookieName: "session",
+  fallbackHours: require("./config").readConfig().sessionHours || 72
+});
 auth.startCleanup();
 const iwaraApi = require("./lib/iwara-api");
 const downloader = require("./lib/downloader");
@@ -40,6 +46,10 @@ const thumbCache = require("./lib/thumb-cache.cjs");
 const profileIndex = require("./lib/profile-index");
 
 const { sendJson, readBody, parseCredentialText } = require("./framework/http-utils");
+
+// 静态资源根目录：必须在 loadFragmentAssembler() 调用前定义（该函数体引用它，
+// 且第 72 行立即执行，原声明在下方会触发 TDZ ReferenceError）。
+const PUBLIC_DIR = path.join(__dirname, "public");
 
 // ---------- HTML 片段组装（框架能力，项目侧只传参） ----------
 // index.html 由 fragments/ 下的分片拼装（框架 fragment-assembler 提供）；
@@ -66,7 +76,6 @@ function loadFragmentAssembler() {
 const fragmentAssembler = loadFragmentAssembler();
 const { isDeniedBrowseDir, isSystemJunkName } = require("./framework/path-safe");
 
-const PUBLIC_DIR = path.join(__dirname, "public");
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -107,7 +116,7 @@ let CLI_PORT = null;
 
 // ---------- 工具 ----------
 // 本地 Range 播放。「没下载完的part文件我希望也能部分播放」
-// AI 思路：未下完时 Content-Range 的 total 必须是已写入字节，不能报预计完整体积。
+// 未下完时 Content-Range 的 total 必须是已写入字节，不能报预计完整体积。
 function streamLocalVideo(req, res, filePath, opts) {
   let st;
   try { st = fs.statSync(filePath); } catch (_) { res.writeHead(404); res.end("Not Found"); return; }
@@ -168,12 +177,9 @@ function playHint(id) {
   };
 }
 
-// hours 显式传入时用它（勾选「记住此设备」签长会话），否则回落到 config.sessionHours
-function setSessionCookie(res, token, hours) {
-  const cfgNow = cfg.readConfig();
-  const maxAge = (hours != null ? hours : (cfgNow.sessionHours || 72)) * 3600;
-  res.setHeader("Set-Cookie", `${auth.cookieName()}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`);
-}
+// setSessionCookie / clearSessionCookie 由框架统一提供（framework/auth.js），
+// 各项目不再各写一份，避免会话有效期与 cookie Max-Age 出现错位。
+const { setSessionCookie, clearSessionCookie } = auth;
 
 function requireAuth(req) {
   const c = cfg.readConfig();
@@ -258,7 +264,8 @@ const api = {
   isDeniedBrowseDir, isSystemJunkName
 };
 
-require("./routes/auth")(api);
+require("./framework/routes-auth")(api);   // 登录/登出/状态/改密（框架层·通用）
+require("./routes/auth")(api);             // /api/token（iwara 专属）
 require("./routes/settings")(api);
 require("./routes/account")(api);
 require("./routes/videos")(api);

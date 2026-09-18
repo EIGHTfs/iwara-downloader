@@ -6,7 +6,27 @@
 "use strict";
 
 module.exports = function register(api) {
-  const { route, sendJson, readBody, downloader, parseDownloadItems } = api;
+  const { route, sendJson, readBody, downloader } = api;
+
+  // 规整下载项：兼容油猴「发送到服务器」的字符串（完整 iwara.tv 链接或纯 ID）与对象两种形态。
+  // 原在 app.js，P1 路由拆分时被一并删除导致 /api/download 调用报错，此处内联回本模块。
+  function parseDownloadItems(rawItems) {
+    if (!Array.isArray(rawItems)) return [];
+    return rawItems
+      .map((it) => {
+        if (typeof it === "string") it = { url: it };
+        if (!it || typeof it !== "object") return null;
+        let id = String(it.id || "").trim();
+        const url = String(it.url || "").trim();
+        if (!id && url) {
+          const m = url.match(/\/(?:video|v)\/([\w-]+)/i);
+          id = m ? m[1] : url.replace(/^https?:\/\/[^/]+\//, "").split("?")[0].trim();
+        }
+        if (!/^[\w-]+$/.test(id)) return null;
+        return Object.assign({}, it, { id, url });
+      })
+      .filter(Boolean);
+  }
 
   // GET /api/task（需鉴权）
   route("GET", "/api/task", (req, res) => sendJson(res, 200, { ok: true, task: downloader.getTask() }));

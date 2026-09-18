@@ -162,7 +162,7 @@ PID 文件：项目根 `iwara-downloader-server.pid`（不入库）。
 油猴脚本（v7.1.0+）「📤 发送到服务器」：
 
 1. 打开任意 iwara 视频页（如 `https://www.iwara.tv/video/eBTWBPRSTFkahe`）
-2. 点右下角 🎫 按钮，填服务器地址（`10.10.10.4:28463` 或 `http://10.10.10.4:28463` 均可，没写协议会自动补 `http://`），点 **📤 发送**
+2. 点右下角 🎫 按钮，填服务器地址（`192.168.1.10:28463` 或 `http://192.168.1.10:28463` 均可，没写协议会自动补 `http://`），点 **📤 发送**
 3. 脚本行为：
    - 探测 `GET /api/status`；
    - 服务器设了密码则用本地保存的服务器密码 `POST /api/login` 自动登录；
@@ -189,9 +189,9 @@ PID 文件：项目根 `iwara-downloader-server.pid`（不入库）。
 ```json
 {
   "downloadBackend": "aria2",
-  "aria2Path": "https://sa6400.local:5001/webman/3rdparty/Aria2/aria2rpc_proxy.cgi",
+  "aria2Path": "https://nas.local:5001/webman/3rdparty/Aria2/aria2rpc_proxy.cgi",
   "aria2Token": "你的RPC密钥",
-  "downloadPath": "/volume3/WORKGROUP/"
+  "downloadPath": "/volume1/downloads/"
 }
 ```
 
@@ -203,6 +203,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.5.0 | **修复 `/api/download` 与 `/api/receive` 报 `parseDownloadItems is not a function`**（路由拆分时函数定义被删、调用处保留，油猴「发送到服务器」全程不可用）；**修复服务启动即崩**（`PUBLIC_DIR` 声明在 `loadFragmentAssembler()` 调用之后，触发 TDZ `ReferenceError`）；登录路由归位框架层（`framework/routes-auth.js`），`routes/auth.js` 只留项目专属的 `/api/token`；`aria2Dns` 默认值改为留空（不再写死某台机器的内网 DNS）；`githubRepo` 移出默认配置，改由 `lib/auto-update.js` 的 `defaultRepo` 提供，用户仍可在 `config.json` 覆盖 |
 | 1.4.0 | 备份恢复改用框架层 `createBackup`（配置驱动），删除项目内 `lib/data-backup.js`；`userdata-manifest.json` 改为不入库（导出时自动生成）；清单生成统一走 `marker-manifest`，修正此前把框架文档示例当成数据条目、导致部分 desc 显示为 `desc=xxx` 的问题 |
 | 1.3.1 | 公开库不再跟踪开发者文档 / TROUBLESHOOTING.md |
 | 1.3.0 | start.sh：彩色输出、日志 10MB 轮转压缩、启动前校验 config.json、status 更详细 |
@@ -224,7 +225,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 ## 界面截图
 
-实际运行界面（`http://sa6400.local:28463`，Chromium 无头 CDP 截取）。Cookie / Token 已打码。
+实际运行界面（`http://nas.local:28463`，Chromium 无头 CDP 截取）。Cookie / Token 已打码。
 
 | 页面 | 说明 |
 |---|---|

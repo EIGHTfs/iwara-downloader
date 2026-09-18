@@ -85,3 +85,7 @@ docs/iwara-重构进度.md
 # 安全删除回收站
 .trash/
 node_modules.orig/
+
+# AI 分析报告 / 修复方案（含会话来源，不入公开仓库）
+*修复优化方案*.md
+*AI分析报告*.md
