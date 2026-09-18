@@ -11,7 +11,8 @@
   "brand": {
     "title": "iwara-downloader",
     "logo": "brand.png",
-    "icon": "favicon.png"
+    "icon": "favicon.png",
+    "displayTitle": "Iwara<br>Video<br>Downloader"
   },
   "files": {
     "server/framework/": "server/framework/",

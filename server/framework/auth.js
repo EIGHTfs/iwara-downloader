@@ -8,7 +8,9 @@ const path = require("path");
 const fs = require("fs");
 
 let SESSION_FILE = null;
-let COOKIE_NAME = "token";   // 会话 cookie 名（init 可覆盖，兼容旧项目用 session）
+let COOKIE_NAME = "token";   // 会话 cookie 名（init 可覆盖）
+// ⚠️ 多项目同 host 部署时必须各用各的名字：Cookie 按 host 隔离但【不区分端口】，
+//    两个服务都用 "session" 时会互相覆盖，表现为「刚登录就掉线、记住设备形同虚设」。
 let FALLBACK_HOURS = 72;     // setSessionCookie 未显式传 hours 时的兜底（init 可覆盖）
 let cleanupTimer = null;
 const sessions = new Map(); // token -> { expiresAt, hours, deviceId }

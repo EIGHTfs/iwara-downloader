@@ -1,0 +1,33 @@
+/* 顶栏登录徽章三态（ok / warn / err）——圆角底色，夜间模式单独配色。
+   各项目前端给徽章加的是「<项目前缀>-user-<状态>」class（如 gb-user-ok、
+   iwara-user-ok），前缀由项目 app.js 决定、组装期无法拼接，故此处把两套
+   已存在的选择器并列写出，保持一份通用样式、不改各项目前端。 */
+#gbUserBadge.gb-user-ok,
+#gbUserBadge.gb-user-warn,
+#gbUserBadge.gb-user-err,
+#iwaraUserBadge.iwara-user-ok,
+#iwaraUserBadge.iwara-user-warn,
+#iwaraUserBadge.iwara-user-err {
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 4px;
+}
+
+#gbUserBadge.gb-user-ok,
+#iwaraUserBadge.iwara-user-ok { color: #1a7f37; background: rgba(46, 160, 67, .14); }
+
+#gbUserBadge.gb-user-warn,
+#iwaraUserBadge.iwara-user-warn { color: #9a6700; background: rgba(217, 119, 6, .16); }
+
+#gbUserBadge.gb-user-err,
+#iwaraUserBadge.iwara-user-err { color: #cf222e; background: rgba(220, 38, 38, .13); }
+
+:root[data-theme="night"] #gbUserBadge.gb-user-ok,
+:root[data-theme="night"] #iwaraUserBadge.iwara-user-ok { color: #4ade80; background: rgba(74, 222, 128, .16); }
+
+:root[data-theme="night"] #gbUserBadge.gb-user-warn,
+:root[data-theme="night"] #iwaraUserBadge.iwara-user-warn { color: #fbbf24; background: rgba(251, 191, 36, .16); }
+
+:root[data-theme="night"] #gbUserBadge.gb-user-err,
+:root[data-theme="night"] #iwaraUserBadge.iwara-user-err { color: #f87171; background: rgba(248, 113, 113, .15); }

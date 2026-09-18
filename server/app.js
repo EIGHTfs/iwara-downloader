@@ -23,7 +23,7 @@ const auth = require("./framework/auth");
 // （登录路由已按 remember 显式传 hours，这里只是未传时的兜底）
 auth.init({
   sessionFile: require("./framework/json-dir").jsonFile("sessions.json"),
-  cookieName: "session",
+  cookieName: "iwara_session",
   fallbackHours: require("./config").readConfig().sessionHours || 72
 });
 auth.startCleanup();

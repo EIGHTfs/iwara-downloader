@@ -118,9 +118,6 @@ function bindTabs() {
       tab.classList.add("active");
       $("#panel-" + tab.dataset.tab).classList.add("active");
       try { history.replaceState(null, "", "#" + tab.dataset.tab); } catch (_) {}
-      // 2026-09-01 保存设置悬浮按钮：仅设置页显示
-      const fab = $("#saveSettingsFab");
-      if (fab) fab.classList.toggle("show", tab.dataset.tab === "settings");
     });
   });
   window.addEventListener("hashchange", () => {
@@ -1198,11 +1195,11 @@ function bindSettingsFields() {
   }
 }
 
-// 保存设置悬浮按钮（右下角 💾，仅设置页显示；反馈改 toast）
+// 保存设置按钮（设置页面板内；原先挂在右下角悬浮按钮上，非设置页误触风险大）
 function bindSettingsSave() {
-  const saveFab = $("#saveSettingsFab");
-  if (!saveFab) return;
-  saveFab.addEventListener("click", async () => {
+  const saveBtn = $("#saveSettingsBtn");
+  if (!saveBtn) return;
+  saveBtn.addEventListener("click", async () => {
     try {
       const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
       if (tpl.indexOf("{ID}") < 0) {
