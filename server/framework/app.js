@@ -4,6 +4,7 @@
 
 const http = require("http");
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 const urlMod = require("url");
 
@@ -46,15 +47,16 @@ function isWhitelisted(pathname, whitelist) {
   return false;
 }
 
-function serveStaticFile(res, publicDir, pathname, mime, transformHtml) {
+async function serveStaticFile(res, publicDir, pathname, mime, transformHtml) {
   let filePath = path.join(publicDir, pathname);
   if (pathname.endsWith("/")) filePath = path.join(filePath, "index.html");
   if (!filePath.startsWith(publicDir)) return false;
 
   try {
-    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return false;
+    // 异步 IO：静态资源是每请求路径，同步读会阻塞事件循环（并发加载时尤为明显）
+    if (!(await fsp.stat(filePath)).isFile()) return false;
     const ext = path.extname(filePath).toLowerCase();
-    let content = fs.readFileSync(filePath);
+    let content = await fsp.readFile(filePath);
     // HTML 二次处理钩子（资源版本注入等），返回字符串或 Buffer
     if (ext === ".html" && typeof transformHtml === "function") {
       const out = transformHtml(content.toString("utf8"), pathname);
@@ -217,7 +219,7 @@ function createServer(opts) {
     if (typeof needsSetup === "function" && needsSetup() && !pathname.startsWith("/api/")) {
       if (pathname === "/" || pathname === "/index.html" || pathname === setupPath) {
         if (serveFragment(res, setupPath, mime, transformHtml)) return;
-        if (serveStaticFile(res, publicDir, setupPath, mime, transformHtml)) return;
+        if (await serveStaticFile(res, publicDir, setupPath, mime, transformHtml)) return;
       }
     }
 
@@ -226,7 +228,7 @@ function createServer(opts) {
     const ctx = { cfg: config, auth, sendJson };
     if (await dispatchRoutes(req, res, url, pathname, routes, ctx)) return;
     if (serveFragment(res, pathname, mime, transformHtml)) return;
-    if (serveStaticFile(res, publicDir, pathname, mime, transformHtml)) return;
+    if (await serveStaticFile(res, publicDir, pathname, mime, transformHtml)) return;
 
     sendJson(res, { error: "未找到" }, 404);
   }
