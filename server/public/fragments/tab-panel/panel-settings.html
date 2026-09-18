@@ -15,14 +15,7 @@
         </label>
       </div>
       <p class="hint" style="margin-top:8px">必须含 <code>{ID}</code>：封面 <code>&lt;id&gt;.jpg</code>、json、视频文件都靠这个 id 对上。其它变量：<code>{TITLE}</code> 标题　<code>{ALIAS}</code> 作者显示名　<code>{AUTHOR}</code> 作者用户名　<code>{QUALITY}</code> 清晰度　<code>{UPLOADTIME}</code> 上传时间　<code>{NOWTIME}</code> 下载时间</p>
-      <div class="row mt">
-        <label>作者子目录
-          <select id="set-useAuthorSubdir">
-            <option value="false">否（直接存根目录）</option>
-            <option value="true">是</option>
-          </select>
-        </label>
-      </div>
+        <p class="hint">模板里的 <code>/</code> 是目录分隔：写 <code>{AUTHOR}/Iwara_-_{TITLE}_[{ID}]</code> 即按作者分目录；不写 <code>/</code> 则直接存下载根目录。</p>
       <h3 style="margin:14px 0 8px;font-size:14px;color:var(--primary)">✏️ 按模板重命名文件</h3>
       <p class="hint" style="margin:4px 0 8px">只认 json/index 里的 id。预览后点确认执行（无弹窗）。目标已存在会失败，可对那一条点「强制执行」覆盖重复。</p>
       <div class="row">

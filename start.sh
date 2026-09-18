@@ -21,6 +21,7 @@ CONFIG_FILE="$SERVER_DIR/config.json"
 DEFAULT_PORT="${DEFAULT_PORT:-8643}"
 LOG_ROTATE_BYTES=$((10 * 1024 * 1024))
 STOP_WAIT_SEC=10
+START_WAIT_SEC="${START_WAIT_SEC:-15}"   # 启动前等端口释放的上限（秒）
 
 # ---------- 颜色（stdout 是终端才开；NO_COLOR / TERM=dumb 关闭）----------
 C_GREEN="" C_YELLOW="" C_RED="" C_DIM="" C_RESET=""
@@ -195,19 +196,48 @@ collect_live_pids() {
   done
 }
 
+# 本机是否已有进程监听该端口（精确匹配端口号，不看 PID）
+#   注意：必须用「末尾锚定」的端口匹配。旧写法 `$4 ~ ":8642"` 是子串匹配，
+#   会连 ":18642" / ":86421" 一起命中——同机跑多实例时互相误判、误杀。
+port_in_use() {
+  local port="$1" out=""
+  if command -v ss >/dev/null 2>&1; then
+    out="$(ss -tln 2>/dev/null)"
+  elif command -v netstat >/dev/null 2>&1; then
+    out="$(netstat -tln 2>/dev/null)"
+  fi
+  [ -n "$out" ] || return 1
+  # 第 4 列形如 0.0.0.0:8642 / [::]:8642 / :::8642 / 127.0.0.1:8642
+  printf '%s\n' "$out" | awk -v p="$port" '
+    $4 ~ ("[.:]" p "$") { found = 1; exit }
+    END { exit(found ? 0 : 1) }'
+}
+
 # 监听指定端口的进程 PID（取本项目 node 进程；优先 ss，退回 netstat）
 port_pids() {
   local port="$1" out=""
   if command -v ss >/dev/null 2>&1; then
-    out="$(ss -tlnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print}')"
+    out="$(ss -tlnp 2>/dev/null | awk -v p="$port" '$4 ~ ("[.:]" p "$") {print}')"
   elif command -v netstat >/dev/null 2>&1; then
-    out="$(netstat -tlnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print}')"
+    out="$(netstat -tlnp 2>/dev/null | awk -v p="$port" '$4 ~ ("[.:]" p "$") {print}')"
   fi
   [ -n "$out" ] || return 0
   # ss 格式：users:(("node",pid=1234,fd=20)) → 取 pid=NNN
   # netstat 格式：最后一列是 "1234/node"        → 取斜杠前的数字
   printf '%s\n' "$out" | grep -o 'pid=[0-9]*' | cut -d= -f2
   printf '%s\n' "$out" | awk '{n=split($NF,a,"/"); if (n>1 && a[1] ~ /^[0-9]+$/) print a[1]}'
+}
+
+# 等端口真正释放（旧进程退出 ≠ 端口立刻可用：TIME_WAIT、子进程继承 fd）
+#   返回 0 = 已释放，1 = 超时仍被占用
+wait_port_free() {
+  local port="$1" timeout="${2:-10}" i=0
+  while [ "$i" -lt "$((timeout * 2))" ]; do
+    port_in_use "$port" || return 0
+    sleep 0.5
+    i=$((i + 1))
+  done
+  return 1
 }
 
 listen_line() {
@@ -234,6 +264,19 @@ start_server() {
   if [ -n "$live" ]; then
     warn "⚠️  已在运行 (PID $live, 端口 $port)。如需重启: ./start.sh restart"
     return 1
+  fi
+  # 端口仍被占但找不到归属进程：典型是上一次重启刚发的 SIGTERM 还没走完，
+  #   连接处于 TIME_WAIT、或子进程临时继承了监听 fd（非 root 看不到其 PID）。
+  #   旧逻辑此处直接启动，bind 失败后进程秒退，表现为「重启后服务没起来」。
+  #   这里先等端口真正空出来，等到就继续启动，等不到才报错退出。
+  if port_in_use "$port"; then
+    warn "⏳ 端口 $port 仍被占用，等待释放（最多 ${START_WAIT_SEC}s）..."
+    if ! wait_port_free "$port" "$START_WAIT_SEC"; then
+      err "❌ 端口 $port 等待 ${START_WAIT_SEC}s 仍未释放，放弃启动。"
+      err "   排查：netstat -tlnp | grep :$port   或换端口: ./start.sh --port <新端口>"
+      return 1
+    fi
+    ok "✓ 端口 $port 已释放"
   fi
   rm -f "$PID_FILE"
   mkdir -p "$SERVER_DIR"
@@ -415,7 +458,14 @@ fi
 case "$CMD" in
   start)   start_server "$@" ;;
   stop)    stop_server ;;
-  restart) stop_server; sleep 1; start_server "$@" ;;
+  restart)
+    # 不再用固定 sleep 1：stop 只保证进程退出，端口未必立刻可用。
+    #   start_server 内部会等端口释放（START_WAIT_SEC），这里只做一次
+    #   短暂的进程回收间隔，避免 stop 刚 kill 完就 bind。
+    stop_server
+    sleep 1
+    start_server "$@"
+    ;;
   status)  status_server ;;
   *)
     err "❌ 未知命令: $CMD"
