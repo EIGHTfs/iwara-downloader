@@ -1,6 +1,16 @@
 
-/* 下载进度预览图（下载时预览图） */
+/* 下载进度预览图（下载时预览图）；gif 用 .row-thumb-gif 加角标区分 */
 .row-thumb {
   width: 56px; height: 56px; object-fit: cover; border-radius: 6px;
   border: 1px solid var(--border); margin-left: 8px;
+}
+/* gif 预览：外层定位角标，内层同 .row-thumb 尺寸 */
+.row-thumb-wrap { position: relative; display: inline-flex; margin-left: 8px; }
+.row-thumb-wrap .row-thumb { margin-left: 0; }
+.row-thumb-badge {
+  position: absolute; right: 3px; bottom: 3px;
+  padding: 0 4px; border-radius: 4px;
+  font-size: 9px; font-weight: 700; letter-spacing: .3px; line-height: 14px;
+  color: #fff; background: rgba(0, 0, 0, .62);
+  pointer-events: none;
 }

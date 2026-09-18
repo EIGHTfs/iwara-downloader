@@ -31,7 +31,11 @@
 .hint { color: var(--muted); font-size: 12px; }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .row.mt, .mt { margin-top: 10px; }
-button {
+/* 按钮外观同时作用于 <button> 与 .btn（<a> 当按钮用）。
+   下载列表的「▶ 播放」、顶栏「油猴脚本」都是 <a>：没有 .btn 时只继承到
+   链接默认样式（蓝色带下划线、无边框底色），看起来不像按钮。 */
+button,
+.btn {
   padding: 6px 14px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -40,11 +44,15 @@ button {
   cursor: pointer;
   font-size: 13px;
 }
-button.ghost { background: var(--card2); border: 1px solid var(--border); color: var(--text); }
-button.primary { background: linear-gradient(135deg, var(--primary), var(--accent2)); color: #1a1a1a; border-color: var(--primary); font-weight: 600; }
-button.success { background: var(--success); color: #fff; border-color: var(--success); }
-button.danger { background: var(--fail); color: #fff; border-color: var(--fail); }
-button:disabled { opacity: .5; cursor: not-allowed; }
+/* <a> 当按钮用：去掉链接下划线，默认灰底（ghost 风格） */
+a.btn, a.ghost { text-decoration: none; }
+button.ghost, .btn.ghost, a.ghost {
+  background: var(--card2); border: 1px solid var(--border); color: var(--text);
+}
+button.primary, .btn.primary { background: linear-gradient(135deg, var(--primary), var(--accent2)); color: #1a1a1a; border-color: var(--primary); font-weight: 600; }
+button.success, .btn.success { background: var(--success); color: #fff; border-color: var(--success); }
+button.danger, .btn.danger { background: var(--fail); color: #fff; border-color: var(--fail); }
+button:disabled, .btn:disabled { opacity: .5; cursor: not-allowed; }
 input, select, textarea {
   padding: 6px 10px;
   border: 1px solid var(--border);
