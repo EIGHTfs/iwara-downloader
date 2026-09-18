@@ -203,6 +203,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.6.0 | **修复页面完全失去样式**：静态服务只对 `.html` 走片段组装，`style.css` 被漏掉——产物里 `style.css` 只保留 19 条 `@frag:` 指令（942 字节），浏览器拿到的是指令文本而非样式，页面 HTML 结构正常但渲染为纯文本。判据改用组装清单（`assembler.list()`）而非扩展名，展开后 11747 字节、指令零残留。版本号注入仍只对 HTML 生效 |
 | 1.5.0 | **修复 `/api/download` 与 `/api/receive` 报 `parseDownloadItems is not a function`**（路由拆分时函数定义被删、调用处保留，油猴「发送到服务器」全程不可用）；**修复服务启动即崩**（`PUBLIC_DIR` 声明在 `loadFragmentAssembler()` 调用之后，触发 TDZ `ReferenceError`）；登录路由归位框架层（`framework/routes-auth.js`），`routes/auth.js` 只留项目专属的 `/api/token`；`aria2Dns` 默认值改为留空（不再写死某台机器的内网 DNS）；`githubRepo` 移出默认配置，改由 `lib/auto-update.js` 的 `defaultRepo` 提供，用户仍可在 `config.json` 覆盖 |
 | 1.4.0 | 备份恢复改用框架层 `createBackup`（配置驱动），删除项目内 `lib/data-backup.js`；`userdata-manifest.json` 改为不入库（导出时自动生成）；清单生成统一走 `marker-manifest`，修正此前把框架文档示例当成数据条目、导致部分 desc 显示为 `desc=xxx` 的问题 |
 | 1.3.1 | 公开库不再跟踪开发者文档 / TROUBLESHOOTING.md |

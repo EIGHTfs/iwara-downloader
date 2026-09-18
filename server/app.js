@@ -228,19 +228,21 @@ function serveStatic(req, res, pathname) {
     if (ext === ".html" || ext === ".js" || ext === ".css") headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
     if (ext === ".ico" || ext === ".png") headers["Cache-Control"] = "public, max-age=86400";
     if (req.method === "HEAD") { res.writeHead(200, headers); res.end(); return; }
-    if (ext === ".html") {
-      // 片段组装优先：框架文件（含 @frag 指令）由组装器拼装，失败回退原始文件
-      const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep).join("/");
-      let raw = null;
-      if (fragmentAssembler && fragmentAssembler.list().indexOf(rel) >= 0) {
-        const r = fragmentAssembler.render(rel);
-        if (r && r.ok && r.text != null) raw = r.text;
-        else if (r && r.error) console.error("[fragments] " + rel + " 组装失败: " + r.error);
+    // 片段组装优先：框架文件（index.html / style.css / login.html / setup.html）
+    // 在产物里只保留 @frag 指令骨架，必须经组装器展开。
+    // 判据用「组装清单」而非扩展名 —— 只认 .html 会把 style.css 漏掉，
+    // 浏览器拿到的是指令文本、CSS 等于空文件，页面结构正常但完全失去样式。
+    const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep).join("/");
+    if (fragmentAssembler && fragmentAssembler.list().indexOf(rel) >= 0) {
+      const r = fragmentAssembler.render(rel);
+      if (r && r.ok && r.text != null) {
+        // 版本号注入只针对 HTML（匹配 <link>/<script> 标签，对 CSS 无意义）
+        const out = ext === ".html" ? injectAssetVersion(r.text, PUBLIC_DIR) : r.text;
+        headers["Content-Length"] = Buffer.byteLength(out);
+        res.writeHead(200, headers);
+        return res.end(out);
       }
-      const html = injectAssetVersion(raw != null ? raw : fs.readFileSync(filePath, "utf8"), PUBLIC_DIR);
-      headers["Content-Length"] = Buffer.byteLength(html);
-      res.writeHead(200, headers);
-      return res.end(html);
+      if (r && r.error) console.error("[fragments] " + rel + " 组装失败: " + r.error);
     }
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
