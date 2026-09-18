@@ -12,14 +12,18 @@ module.exports = function register(api) {
   routePublic("POST", "/api/login", async (req, res) => {
     const body = await readBody(req);
     const c = cfg.readConfig();
+    // 勾选「记住此设备」签长会话（默认 720h），不勾沿用 config.sessionHours（默认 72h）。
+    // 登录页的 remember 复选框默认勾选，故默认即 30 天免登录。
+    const rememberHours = c.sessionRememberHours || 720;
+    const hours = body.remember ? rememberHours : (c.sessionHours || 72);
     if (!c.passwordHash) {
-      const { token } = auth.createSession({ hours: c.sessionHours || 72 });
-      setSessionCookie(res, token);
+      const { token } = auth.createSession({ hours });
+      setSessionCookie(res, token, hours);
       return sendJson(res, 200, { ok: true, noPassword: true, message: "未设置访问密码，可直接使用" });
     }
     if (cfg.verifyPassword(body.password || "", c.passwordHash, c.passwordSalt)) {
-      const { token } = auth.createSession({ hours: c.sessionHours || 72 });
-      setSessionCookie(res, token);
+      const { token } = auth.createSession({ hours });
+      setSessionCookie(res, token, hours);
       return sendJson(res, 200, { ok: true });
     }
     return sendJson(res, 401, { ok: false, error: "密码错误" });
