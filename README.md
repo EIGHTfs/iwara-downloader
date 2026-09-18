@@ -203,6 +203,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.3 | ①下载列表「▶ 播放」样式：它是 `<a>`，此前只有 `.mm-play-btn` 的尺寸规则、没有按钮外观，显示成裸链接；新增 `a.mm-play-btn` 显式补齐边框/圆角/底色/文字色与 hover，不依赖 `.btn` 的层叠顺序。②代码拆分：`bindProgress` 99 行 → 拆出 `refreshTask` / `bindTaskButtons` / `bindRowActions` + `ROW_ACTIONS` 映射表，`bindProgress` 收敛为 3 行；`bindSettingsSave` 52 行 → 拆出 `readSettingsForm` / `afterSettingsSaved`。行内按钮的 5 套分支原本各写一遍，改为查表分发 |
 | 1.7.2 | 修复 `<a>` 当按钮用时丢样式（根因：按钮规则限定 `button.` 前缀）：下载列表「▶ 播放」与顶栏「油猴脚本」都是 `<a>`，只拿到尺寸、没有边框/底色/文字色，显示成裸链接；现补 `btn` 类并由 `.btn` 承接按钮外观，`a.ghost` 去下划线 |
 | 1.7.1 | 同步模板 1.5.0：①顶栏徽章元素 id 由 `iwaraUserBadge` 统一为 `UserBadge`（`topbar/badge.html` + `app.js` 三处选择器）；②修复 `topbar/userscript.html` 里「安装油猴脚本」按钮样式——按钮类名与 `style.css` 对不上，改为 `ghost hbtn` 后恢复顶栏按钮外观；③框架 `app.js` 新增 `server.drain()` 优雅关停：自动更新重启前等在途响应写完，避免静态资源被截断；④`auto-update` 复制新版本期间挂起文件监听，避免复制途中的中间态触发误重启 |
 | 1.7.0 | **顶栏品牌区改由通用框架 + 品牌配置生成**：`topbar/brand.html` 原硬编码 `iwara-logo.png` / `alt="Iwara"`，绕过了框架的品牌占位符机制（登录页早已用 `@brand:`，顶栏却没有，同一页面两套做法）。现改为 `@brand:logo@` / `@brand:title@` / `@brand:displayTitle@` 取值，`brand.json` 新增 `displayTitle` 键承载顶栏三行标题。`topbar/time.html` 同时归位通用层（原为与 gbmd 逐字相同的重复副本）。另移除代码注释里的「AI 思路：」前缀 |

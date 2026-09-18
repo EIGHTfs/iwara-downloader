@@ -156,103 +156,76 @@ function bindBatch() {
   });
 }
 
-function bindProgress() {
-  // 暂停后无法继续/终止，按钮状态未及时切换
-  // 【原代码】pause/resume/stop 只 POST，等 1.5s 轮询才改按钮。
-  // 【改为】点完立刻拉 /api/task 重绘，对照 gbmd refreshTask。
-  async function refreshTask() {
-    try {
-      const t = await api("/api/task");
-      renderTask(t.task);
-    } catch (_) {}
-  }
-  $("#pauseBtn").addEventListener("click", async () => {
-    $("#pauseBtn").disabled = true;
-    await api("/api/task/pause", "POST", {});
-    await refreshTask();
-  });
-  $("#resumeBtn").addEventListener("click", async () => {
-    $("#resumeBtn").disabled = true;
-    await api("/api/task/resume", "POST", {});
-    await refreshTask();
-  });
-  $("#stopBtn").addEventListener("click", async () => {
-    $("#stopBtn").disabled = true;
-    await api("/api/task/stop", "POST", {});
-    await refreshTask();
-  });
-  $("#retryBtn").addEventListener("click", async () => {
-    const r = await api("/api/task/retry", "POST", {});
-    if (r && r.ok) showFeedback("已重试失败项", "ok");
-    else showFeedback((r && r.error) || "重试失败", "err");
-  });
-  const clearFailBtn = $("#clearFailBtn");
-  if (clearFailBtn) {
-    clearFailBtn.addEventListener("click", async () => {
-      const r = await api("/api/task/clear-failed", "POST", {});
-      if (r && r.ok) showFeedback("已清除失败 " + (r.removed || 0) + " 项（文件仍在）", "ok");
-      else showFeedback((r && r.error) || "清除失败", "err");
+// 点完立刻拉 /api/task 重绘，不等 1.5s 轮询（对照 gbmd refreshTask）
+async function refreshTask() {
+  try {
+    const t = await api("/api/task");
+    renderTask(t.task);
+  } catch (_) {}
+}
+
+// 行内按钮 → 接口/反馈文案 的映射；单条操作走同一套分发
+const ROW_ACTIONS = {
+  "mm-retry-btn": { path: "/api/task/retry", ok: "已重试", err: "重试失败", refresh: true },
+  "mm-pause-btn": { path: "/api/task/pause", refresh: true },
+  "mm-resume-btn": { path: "/api/task/resume", refresh: true },
+  "mm-stop-btn": { path: "/api/task/stop", refresh: true },
+  // 2026-09-04：下载完单项从列表拿掉，文案叫「移除」不是「跳过」；接口仍是 remove-item，不删文件
+  "mm-skip-btn": { path: "/api/task/remove-item", ok: "已移除（文件仍在）", err: "移除失败" },
+};
+
+// 顶部整任务按钮：暂停/继续/终止需禁用防连点，重试/清除只回反馈
+function bindTaskButtons() {
+  const manual = [
+    ["#pauseBtn", "/api/task/pause"], ["#resumeBtn", "/api/task/resume"], ["#stopBtn", "/api/task/stop"],
+  ];
+  for (const [sel, path] of manual) {
+    const el = $(sel);
+    if (!el) continue;
+    el.addEventListener("click", async () => {
+      el.disabled = true;
+      await api(path, "POST", {});
+      await refreshTask();
     });
   }
-  const clearDoneBtn = $("#clearDoneBtn");
-  if (clearDoneBtn) {
-    clearDoneBtn.addEventListener("click", async () => {
-      const r = await api("/api/task/remove-completed", "POST", {});
-      if (r && r.ok) showFeedback("已清除完成 " + (r.removed || 0) + " 项（文件仍在）", "ok");
-      else showFeedback((r && r.error) || "清除失败", "err");
+  const simple = [
+    ["#retryBtn", "/api/task/retry", (r) => "已重试失败项", "重试失败"],
+    ["#clearFailBtn", "/api/task/clear-failed", (r) => "已清除失败 " + (r.removed || 0) + " 项（文件仍在）", "清除失败"],
+    ["#clearDoneBtn", "/api/task/remove-completed", (r) => "已清除完成 " + (r.removed || 0) + " 项（文件仍在）", "清除失败"],
+  ];
+  for (const [sel, path, okMsg, errMsg] of simple) {
+    const el = $(sel);
+    if (!el) continue;
+    el.addEventListener("click", async () => {
+      const r = await api(path, "POST", {});
+      if (r && r.ok) showFeedback(okMsg(r), "ok");
+      else showFeedback((r && r.error) || errMsg, "err");
     });
   }
+}
+
+// 下载列表行内按钮：事件委托（行是动态重绘的，逐个绑定会随重绘失效）
+function bindRowActions() {
   const list = $("#taskList");
-  if (list && !list._rmBound) {
-    list._rmBound = true;
-    list.addEventListener("click", async (ev) => {
-      const retryBtn = ev.target && ev.target.closest && ev.target.closest("button.mm-retry-btn");
-      if (retryBtn) {
-        const id = retryBtn.getAttribute("data-id");
-        if (!id) return;
-        const r = await api("/api/task/retry", "POST", { id });
-        if (r && r.ok) showFeedback("已重试", "ok");
-        else showFeedback((r && r.error) || "重试失败", "err");
-        try { const t = await api("/api/task"); renderTask(t.task); } catch (_) {}
-        return;
-      }
-      const pauseOne = ev.target && ev.target.closest && ev.target.closest("button.mm-pause-btn");
-      if (pauseOne) {
-        const id = pauseOne.getAttribute("data-id");
-        if (!id) return;
-        await api("/api/task/pause", "POST", { id });
-        try { const t = await api("/api/task"); renderTask(t.task); } catch (_) {}
-        return;
-      }
-      const resumeOne = ev.target && ev.target.closest && ev.target.closest("button.mm-resume-btn");
-      if (resumeOne) {
-        const id = resumeOne.getAttribute("data-id");
-        if (!id) return;
-        await api("/api/task/resume", "POST", { id });
-        try { const t = await api("/api/task"); renderTask(t.task); } catch (_) {}
-        return;
-      }
-      const stopOne = ev.target && ev.target.closest && ev.target.closest("button.mm-stop-btn");
-      if (stopOne) {
-        const id = stopOne.getAttribute("data-id");
-        if (!id) return;
-        await api("/api/task/stop", "POST", { id });
-        try { const t = await api("/api/task"); renderTask(t.task); } catch (_) {}
-        return;
-      }
-      const skipBtn = ev.target && ev.target.closest && ev.target.closest("button.mm-skip-btn");
-      if (!skipBtn) return;
-      const id = skipBtn.getAttribute("data-id");
-      if (!id) return;
-      const r = await api("/api/task/remove-item", "POST", { id });
-      // 2026-09-04：下载完单项从列表拿掉，文案叫「移除」不是「跳过」。
-      // 【原代码】showFeedback("已跳过（文件仍在）") / "跳过失败"
-      // 【改为】完成项移除描述错误：原「跳过」改为「移除」
-      // 【思路】接口仍是 /api/task/remove-item，不删文件；只改按钮和反馈文案。
-      if (r && r.ok) showFeedback("已移除（文件仍在）", "ok");
-      else showFeedback((r && r.error) || "移除失败", "err");
-    });
-  }
+  if (!list || list._rmBound) return;
+  list._rmBound = true;
+  list.addEventListener("click", async (ev) => {
+    const target = ev.target;
+    if (!target || !target.closest) return;
+    const hit = Object.keys(ROW_ACTIONS).find((cls) => target.closest("button." + cls));
+    if (!hit) return;
+    const id = target.closest("button." + hit).getAttribute("data-id");
+    if (!id) return;
+    const act = ROW_ACTIONS[hit];
+    const r = await api(act.path, "POST", { id });
+    if (act.ok) showFeedback(r && r.ok ? act.ok : ((r && r.error) || act.err), r && r.ok ? "ok" : "err");
+    if (act.refresh) await refreshTask();
+  });
+}
+
+function bindProgress() {
+  bindTaskButtons();
+  bindRowActions();
   startTaskPoll();
 }
 
@@ -1196,52 +1169,64 @@ function bindSettingsFields() {
 }
 
 // 保存设置按钮（设置页面板内；原先挂在右下角悬浮按钮上，非设置页误触风险大）
+// 读设置表单 → 提交 body；模板缺 {ID} 时返回 null（调用方负责报错）
+function readSettingsForm() {
+  const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
+  if (tpl.indexOf("{ID}") < 0) return null;
+  const body = {
+    downloadPath: $("#set-downloadPath").value.trim(),
+    fileNameTemplate: tpl,
+    useAuthorSubdir: $("#set-useAuthorSubdir").value === "true",
+    showLikedInSearch: $("#set-showLikedInSearch") ? $("#set-showLikedInSearch").checked : true,
+    autoLike: $("#set-autoLike") ? $("#set-autoLike").checked : false,
+    autoFollow: $("#set-autoFollow") ? $("#set-autoFollow").checked : false,
+    playPublic: $("#set-playPublic") ? $("#set-playPublic").checked : true,
+    downloadBackend: $("#set-downloadBackend").value,
+    concurrency: parseInt($("#set-concurrency").value, 10) || 3,
+    downloadToggles: {
+      video: $("#set-dlVideo") ? $("#set-dlVideo").checked : true,
+      json: $("#set-dlJson") ? $("#set-dlJson").checked : true
+    },
+    aria2Path: $("#set-aria2Path").value.trim(),
+    aria2Token: $("#set-aria2Token").value,
+    iwaraCfgIp: $("#set-iwaraCfgIp").value.trim(),
+    aria2Dns: $("#set-aria2Dns").value.trim()
+  };
+  const credText = $("#set-iwaraCookie").value;
+  if (credText && credText.trim()) body.iwaraCookie = credText;   // 留空 = 不覆盖已存凭证
+  return body;
+}
+
+// 保存成功后的收尾：清空凭证输入框（改提示语）、回填、状态与刷新
+function afterSettingsSaved(r) {
+  const cookieEl = $("#set-iwaraCookie");
+  if (cookieEl) {
+    cookieEl.value = "";
+    cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";
+    cookieEl.dataset.filled = "1";
+  }
+  fillSettings(r.settings);
+  setStatus($("#settingsStatus"), "已保存凭证与设置", "ok");
+  // 2026-09-01 保存反馈改悬浮窗
+  showToast("✅ 已保存设置", "ok");
+  if (kwType() === "users") loadFollowingUsers();
+  refreshIwaraBadge();
+}
+
 function bindSettingsSave() {
   const saveBtn = $("#saveSettingsBtn");
   if (!saveBtn) return;
   saveBtn.addEventListener("click", async () => {
     try {
-      const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
-      if (tpl.indexOf("{ID}") < 0) {
+      const body = readSettingsForm();
+      if (!body) {
         showToast("文件名模板必须含 {ID}", "err");
         setStatus($("#settingsStatus"), "文件名模板必须含 {ID}，封面和 json 靠这个 id 对视频", "err");
         return;
       }
-      const body = {
-        downloadPath: $("#set-downloadPath").value.trim(),
-        fileNameTemplate: tpl,
-        useAuthorSubdir: $("#set-useAuthorSubdir").value === "true",
-        showLikedInSearch: $("#set-showLikedInSearch") ? $("#set-showLikedInSearch").checked : true,
-        autoLike: $("#set-autoLike") ? $("#set-autoLike").checked : false,
-        autoFollow: $("#set-autoFollow") ? $("#set-autoFollow").checked : false,
-        playPublic: $("#set-playPublic") ? $("#set-playPublic").checked : true,
-        downloadBackend: $("#set-downloadBackend").value,
-        concurrency: parseInt($("#set-concurrency").value, 10) || 3,
-        downloadToggles: {
-          video: $("#set-dlVideo") ? $("#set-dlVideo").checked : true,
-          json: $("#set-dlJson") ? $("#set-dlJson").checked : true
-        },
-        aria2Path: $("#set-aria2Path").value.trim(),
-        aria2Token: $("#set-aria2Token").value,
-        iwaraCfgIp: $("#set-iwaraCfgIp").value.trim(),
-        aria2Dns: $("#set-aria2Dns").value.trim()
-      };
-      const credText = $("#set-iwaraCookie").value;
-      if (credText && credText.trim()) body.iwaraCookie = credText;
       const r = await api("/api/settings", "POST", body);
       if (!r.ok) throw new Error(r.error || "保存失败");
-      const cookieEl = $("#set-iwaraCookie");
-      if (cookieEl) {
-        cookieEl.value = "";
-        cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";
-        cookieEl.dataset.filled = "1";
-      }
-      fillSettings(r.settings);
-      setStatus($("#settingsStatus"), "已保存凭证与设置", "ok");
-      // 2026-09-01 保存反馈改悬浮窗
-      showToast("✅ 已保存设置", "ok");
-      if (kwType() === "users") loadFollowingUsers();
-      refreshIwaraBadge();
+      afterSettingsSaved(r);
     } catch (e) {
       setStatus($("#settingsStatus"), e.message, "err");
       showToast("❌ 保存失败：" + e.message, "err");
