@@ -20,3 +20,7 @@
 /* @frag:styles/toast.css */
 /* @frag:styles/diff.css */
 /* @frag:styles/hud.css */
+/* 风格层可选片段：仅 _gbmd-style 提供（mod-group=下载列表分组折叠，grid-map=网格映射行）
+   缺失时组装器生成占位注释，不影响其它风格组装 */
+/* @frag:styles/mod-group.css */
+/* @frag:styles/grid-map.css */

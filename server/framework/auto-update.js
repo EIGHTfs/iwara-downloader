@@ -98,6 +98,11 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
   let restarting = false;
   let _onRestart = null;
   let _onStatus = null;
+  // 应用更新期间的 watch 挂起标记：copyTreeSafe 逐文件写盘会逐个触发 watch，
+  //   导致日志刷屏，且最后一次写入与重启之间没有静置时间（重启紧贴写盘末尾）。
+  let applying = false;
+  // 优雅关停钩子：由 app.js 注入，返回 Promise，等待在途 HTTP 响应写完再退出。
+  let _onShutdown = null;
   // github 模式最近一次检查结果（内存态，供 /api/auto-update/check 与前端展示）
   let lastCheck = null;
 
@@ -185,6 +190,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
   /** watch 模式：监控 server/ 目录文件变更 */
   function startFileWatch() {
     watcher = fs.watch(SERVER_DIR, { recursive: false }, (event, filename) => {
+      if (applying) return; // 应用更新自身写盘触发的变更，不是用户改动，忽略
       if (!shouldRestartFor(filename)) return;
       _log(`检测到变更: ${filename}`);
       scheduleRestart();
@@ -199,7 +205,8 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     try {
       if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return;
       fs.watch(dir, { recursive: true }, (event, filename) => {
-        if (!shouldRestartFor(filename)) return;
+        if (applying) return; // 应用更新自身写盘触发的变更，不是用户改动，忽略
+      if (!shouldRestartFor(filename)) return;
         _log(`检测到变更: ${filename}`);
         scheduleRestart();
       });
@@ -361,6 +368,10 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
    *  sha 形式 URL（/tar.gz/<sha>）按 commit 寻址、内容不可变，避免分支形式
    *  （/tar.gz/refs/heads/<branch>）在推送后 CDN 缓存未刷新时拉到旧包；失败回退分支形式 */
   function applyGitHubUpdate(repo, branch, token, sha) {
+    // 复制期间挂起 watch：逐文件写盘会各自触发一次变更事件（日志刷屏），
+    //   且最后一次写盘与重启之间没有静置时间。这里整体标记，写完再清除。
+    applying = true;
+    const done = () => { applying = false; };
     const tmpDir = path.join(ROOT_DIR, ".auto-update-tmp");
     const tgzPath = path.join(tmpDir, "repo.tar.gz");
     const extractDir = path.join(tmpDir, "extract");
@@ -385,7 +396,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
       chmodScripts(ROOT_DIR);
       // 清理临时目录
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
-    });
+    }).then((v) => { done(); return v; }, (e) => { done(); throw e; });
   }
 
   /** 找到系统 tar（github 模式解压用） */
@@ -541,7 +552,11 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
       if (fs.existsSync(startSh)) {
         fs.mkdirSync(SERVER_DIR, { recursive: true });
         const out = fs.openSync(logFile, "a");
-        const child = spawn("sh", ["-c", `sleep 1; exec "${startSh}" restart >> "${logFile}" 2>&1`], {
+        // 用 sh 显式解释执行，而非 `exec start.sh`：
+        //   工作区可能挂在 noexec 的 CIFS 上，脚本没有可执行位时 exec 会
+        //   Permission denied，导致重启失败而本进程已退出 → 服务直接死掉。
+        //   `sh start.sh` 只要求可读，不要求可执行位。
+        const child = spawn("/bin/sh", ["-c", `sleep 1; /bin/sh "${startSh}" restart >> "${logFile}" 2>&1`], {
           cwd: ROOT_DIR,
           detached: true,
           stdio: ["ignore", out, out],
@@ -557,11 +572,24 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     } catch (e) {
       _log("触发 start.sh 失败: " + (e.message || String(e)));
     }
-    // 延迟 500ms 让 shutdown 完成；start.sh restart 的 stop 阶段会 SIGTERM 本进程
-    setTimeout(() => {
+    // 退出前先排空在途 HTTP 响应：静态资源（style.css 等）带 Content-Length，
+    //   若进程在传输中被 process.exit 硬终止，浏览器会收到截断的响应并解析出半套
+    //   样式/脚本——表现就是「刚更新完页面样式不对，刷新几次又好了」。
+    // 钩子由 app.js 注入（停止接收新连接 + 等在途响应结束）；无钩子时退回原有延迟。
+    const waitShutdown = _onShutdown
+      ? Promise.resolve()
+          .then(() => _onShutdown())
+          .catch((e) => { _log("关停钩子异常: " + (e && e.message || String(e))); })
+      : new Promise((r) => setTimeout(r, 500));
+    // 兜底：钩子自身卡住时也要退出，避免服务永久悬挂
+    const timeout = new Promise((r) => setTimeout(() => {
+      _log("关停等待超时（8s），强制退出");
+      r();
+    }, 8000));
+    Promise.race([waitShutdown, timeout]).then(() => {
       _log("执行 process.exit(0)");
       process.exit(0);
-    }, 500);
+    });
   }
 
   /** 获取状态 */
@@ -585,8 +613,11 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     if (_onStatus) _onStatus(msg);
   }
 
+  /** 注入优雅关停钩子（app.js 在 listen 后调用） */
+  function setShutdownHook(fn) { _onShutdown = fn; }
+
   return {
-    start, stop, getStatus, scheduleRestart, doRestart,
+    start, stop, getStatus, scheduleRestart, doRestart, setShutdownHook,
     checkGitHubUpdate, getGitHubRefSha, getGitHubLatest,
     applyGitHubUpdate, isExcluded, copyTreeSafe
   };

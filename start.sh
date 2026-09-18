@@ -59,6 +59,7 @@ find_node() {
     /var/packages/Node.js_v24/target/usr/local/bin/node \
     /var/packages/Node.js_v22/target/usr/local/bin/node \
     /var/packages/Node.js_v20/target/usr/local/bin/node \
+    /var/packages/DeepSeekHarness-NAS/target/bin/node \
     node; do
     if [ -x "$c" ]; then NODE_BIN="$c"; return 0; fi
     if command -v "$c" >/dev/null 2>&1; then NODE_BIN="$(command -v "$c")"; return 0; fi
@@ -178,6 +179,35 @@ collect_live_pids() {
       esac
     fi
   done
+  # 端口兜底：被外部（宿主/手动 nohup）拉起时不会写 PID 文件，只靠 PID 文件
+  #   会误判「未运行」而漏杀，随后 start 阶段又因端口占用起不来。
+  #   这里按监听端口反查 PID（仅认本项目 node 进程，避免误杀同端口其他程序）。
+  local port
+  port="$(config_port 2>/dev/null || true)"
+  [ -n "$port" ] || return 0
+  local lp
+  lp="$(port_pids "$port")"
+  for p in $lp; do
+    case "$seen" in
+      *" $p "*) ;;
+      *) seen="$seen$p "; printf '%s\n' "$p" ;;
+    esac
+  done
+}
+
+# 监听指定端口的进程 PID（取本项目 node 进程；优先 ss，退回 netstat）
+port_pids() {
+  local port="$1" out=""
+  if command -v ss >/dev/null 2>&1; then
+    out="$(ss -tlnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print}')"
+  elif command -v netstat >/dev/null 2>&1; then
+    out="$(netstat -tlnp 2>/dev/null | awk -v p=":$port" '$4 ~ p {print}')"
+  fi
+  [ -n "$out" ] || return 0
+  # ss 格式：users:(("node",pid=1234,fd=20)) → 取 pid=NNN
+  # netstat 格式：最后一列是 "1234/node"        → 取斜杠前的数字
+  printf '%s\n' "$out" | grep -o 'pid=[0-9]*' | cut -d= -f2
+  printf '%s\n' "$out" | awk '{n=split($NF,a,"/"); if (n>1 && a[1] ~ /^[0-9]+$/) print a[1]}'
 }
 
 listen_line() {
