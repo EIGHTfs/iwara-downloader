@@ -1,0 +1,27 @@
+<div class="card">
+        <h2>🔄 自动更新</h2>
+        <p class="hint">服务端代码自动更新 + 优雅重启。开发机推送代码后，服务端自动拉取并重启，无需手动同步。watch 模式监控文件变更；git 模式定时 git pull；github 模式定时从 GitHub 拉取（服务端不需要 .git）。github 模式的仓库/分支/Token 在 <code>server/config.json</code> 手改（<code>githubRepo</code> / <code>githubBranch</code> / <code>githubToken</code>；Token 仅私有仓库需要）。</p>
+        <div class="row">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="autoUpdateToggle">
+            <span>启用自动更新</span>
+          </label>
+          <label>模式
+            <select id="autoUpdateMode">
+              <option value="watch">文件监控（watch）</option>
+              <option value="git">定时 git pull</option>
+              <option value="github">从 GitHub 拉取（无需 .git）</option>
+            </select>
+          </label>
+          <label id="autoUpdateIntervalRow" style="display:none">间隔（秒）
+            <input type="number" id="autoUpdateInterval" value="300" min="30" max="3600" style="width:90px">
+          </label>
+        </div>
+        <div class="row mt">
+          <button class="primary" id="autoUpdateSaveBtn" type="button">保存</button>
+          <button class="ghost" id="autoUpdateCheckBtn" type="button" title="立即检查 GitHub 新版本（仅 github 模式）">🔍 立即检查</button>
+          <button class="ghost" id="autoUpdateRestartBtn" type="button" title="立即重启（不依赖文件变更检测）">🔄 立即重启</button>
+          <span class="status" id="autoUpdateStatus"></span>
+        </div>
+        <div class="status" id="autoUpdateInfo"></div>
+      </div>

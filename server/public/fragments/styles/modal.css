@@ -1,0 +1,21 @@
+
+/* 目录选择弹窗（设置页读取本地选择） */
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 100;
+}
+.modal {
+  background: var(--card); border-radius: 10px; padding: 16px; width: 560px; max-width: 92vw;
+  max-height: 80vh; display: flex; flex-direction: column;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.browse-path {
+  background: var(--card2); border-radius: 6px; padding: 6px 10px;
+  font-size: 12px; word-break: break-all; margin-bottom: 8px;
+}
+.browse-list { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.browse-item {
+  padding: 6px 10px; cursor: pointer; font-size: 13px;
+  border-bottom: 1px solid var(--border); word-break: break-all;
+}
+.browse-item:hover { background: var(--card2); }

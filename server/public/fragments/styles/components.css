@@ -1,0 +1,59 @@
+.container { max-width: 1080px; margin: 0 auto; padding: 16px; }
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+.tab {
+  padding: 8px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
+}
+.tab.active { background: linear-gradient(135deg, var(--primary), var(--accent2)); color: #1a1a1a; font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2 { margin: 0 0 12px; font-size: 16px; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.hint { color: var(--muted); font-size: 12px; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.row.mt, .mt { margin-top: 10px; }
+button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);   /* 2026-08-26 修复：夜间模式按钮字体暗色 → 显式跟随主题 */
+  cursor: pointer;
+  font-size: 13px;
+}
+button.ghost { background: var(--card2); border: 1px solid var(--border); color: var(--text); }
+button.primary { background: linear-gradient(135deg, var(--primary), var(--accent2)); color: #1a1a1a; border-color: var(--primary); font-weight: 600; }
+button.success { background: var(--success); color: #fff; border-color: var(--success); }
+button.danger { background: var(--fail); color: #fff; border-color: var(--fail); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+input, select, textarea {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--card2);
+  color: var(--text);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+.status { color: var(--muted); font-size: 12px; }
+.status.ok { color: var(--success); }
+.status.err { color: var(--fail); }

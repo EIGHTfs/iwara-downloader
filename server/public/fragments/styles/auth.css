@@ -1,0 +1,14 @@
+.auth-wrap {
+  max-width: 420px;
+  margin: 80px auto;
+  padding: 0 16px;
+}
+.auth-wrap .card { display: flex; flex-direction: column; gap: 10px; }
+.auth-wrap h1 { text-align: center; }
+/* 2026-09-13：登录页「记住此设备」（勾选后 30 天免登录） */
+.remember-row {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  margin: -2px 0 2px;
+}
+.remember-row input { cursor: pointer; }

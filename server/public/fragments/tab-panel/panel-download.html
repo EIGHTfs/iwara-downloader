@@ -1,0 +1,20 @@
+  <!-- ============ 下载 ============ -->
+  <div class="tab-panel active" id="panel-download">
+    <div class="card">
+      <h2>下载视频</h2>
+      <p class="hint">每行一个视频链接或视频 ID</p>
+      <textarea id="batchInput" rows="8" placeholder="每行一个视频链接或视频 ID" style="width:100%"></textarea>
+      <div class="row mt">
+        <button class="primary" id="batchBtn" type="button">开始下载</button>
+        <button class="ghost" id="clearBtn" type="button">清空</button>
+      </div>
+      <div class="status" id="batchStatus"></div>
+    </div>
+    <div class="card">
+      <h2>下载流程说明</h2>
+      <p class="hint">① 解析视频 ID，每次重新向 Iwara 拉取 fresh 直链（直链会过期，不可复用）<br>
+      ② 按文件名模板生成保存名（默认 Iwara_-_{TITLE}_[{ID}]_[{QUALITY}].mp4）<br>
+      ③ 直连后端：IP 直连 Cloudflare 边缘，失败自动换 CDN 子域并断点续传<br>
+      ④ Aria2 后端：把直链推到 RPC，进度请到 Aria2 WebUI 查看</p>
+    </div>
+  </div>

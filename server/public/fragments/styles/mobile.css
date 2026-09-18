@@ -1,0 +1,22 @@
+
+/* ================= 手机端适配（≤768px） ================= */
+@media (max-width: 768px) {
+  .container { padding: 12px; }
+  .card { padding: 14px; }
+  header { flex-wrap: wrap; gap: 6px; padding: 10px 14px; }
+  header .sub { display: none; }
+  /* 2026-09-01 顶部两行块：窄屏下徽章/时间/油猴按钮换行展示 */
+  .right { flex-wrap: wrap; gap: 8px; }
+  .tabs { overflow-x: auto; }
+  .tab { flex: 0 0 auto; min-width: 92px; padding: 10px 8px; }
+  button { padding: 10px 14px; }
+  .item { flex-wrap: wrap; align-items: flex-start; padding: 8px 12px; gap: 4px 8px; }
+  .item .icon { width: 20px; line-height: 1.45; }
+  .item > span:nth-child(2) { flex-basis: 100%; }
+  .item .status-text { flex-basis: 100%; margin-left: 0; text-align: left; padding-left: 28px; }
+  .mod-group-head { flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; }
+  .mod-group-dir { max-width: 100%; text-align: left; }
+  .grid-map-row { flex-direction: column; align-items: stretch; }
+  .result-item { flex-wrap: wrap; }
+  .result-item .name { flex-basis: 100%; min-width: 0; word-break: break-word; }
+}

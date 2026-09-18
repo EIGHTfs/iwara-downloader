@@ -1,0 +1,20 @@
+  <!-- ============ 下载进度 ============ -->
+  <div class="tab-panel" id="panel-progress">
+    <div class="card">
+      <h2>下载进度</h2>
+      <div class="row">
+        <span id="taskState" style="font-weight:600">无任务</span>
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="resumeBtn" type="button" disabled>继续</button>
+        <button id="stopBtn" type="button" disabled class="danger">终止</button>
+        <button id="retryBtn" type="button" disabled class="ghost">重试失败</button>
+        <button id="clearFailBtn" type="button" class="ghost" title="从列表拿掉当前失败项（不删文件）">清除失败</button>
+        <button id="clearDoneBtn" type="button" class="ghost" title="从列表拿掉已完成项（不删文件）">清除完成</button>
+      </div>
+      <div class="progress-wrap mt">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+      <div id="taskMeta"></div>
+      <div id="taskList" class="mt"></div>
+    </div>
+  </div>

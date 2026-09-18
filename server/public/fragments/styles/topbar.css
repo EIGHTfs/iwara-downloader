@@ -1,0 +1,28 @@
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, var(--card), var(--card2));
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+:root[data-theme="night"] header { background: linear-gradient(135deg, #1c2730, #1a232b); }
+header h1 { margin: 0; font-size: 20px; }
+.sub { color: var(--muted); font-size: 12px; }
+.right { display: flex; align-items: center; gap: 12px; }
+/* 品牌区（统一 topbar 模板：三行换行标题 + 横条 logo 自适应高度） */
+.brand-block { display: flex; align-items: center; gap: 10px; }
+.brand-logo { height: 26px; width: auto; vertical-align: middle; object-fit: contain; }
+.brand-title { margin: 0; font-size: 14px; line-height: 1.2; font-weight: 700; }
+/* 顶部右侧三块各自竖排两行（用户名/剩多少天、年月日/时分秒、📥/油猴脚本） */
+.hcol { display: flex; flex-direction: column; line-height: 1.35; text-align: center; white-space: nowrap; }
+.hcol b { font-weight: 600; font-size: 13px; }
+/* 统一 topbar 模板：嵌套 span 竖排（对齐 iwara 结构，JS 只填文本） */
+.header-stack { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.35; text-align: center; white-space: nowrap; }
+.header-stack > span:first-child { font-weight: 600; font-size: 13px; }
+.hbtn { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card2); color: var(--text); line-height: 1.3; }
+.hbtn-icon { font-size: 15px; }
+.hbtn-txt { font-size: 12px; }
