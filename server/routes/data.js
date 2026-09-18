@@ -6,6 +6,7 @@
 
 module.exports = function register(api) {
   const { route, sendJson, readBody, dataBackup, iwaraApi, os, path, fs } = api;
+  const fsp = fs.promises;
 
   // GET /api/data/export（需鉴权）
   route("GET", "/api/data/export", async (req, res) => {
@@ -28,7 +29,8 @@ module.exports = function register(api) {
     try { zipBuf = Buffer.from(b64, "base64"); }
     catch (e) { return sendJson(res, 400, { ok: false, error: "zip 数据解码失败" }); }
     const zipPath = path.join(os.tmpdir(), "iwara-upload-" + Date.now() + ".zip");
-    fs.writeFileSync(zipPath, zipBuf);
+    // 异步写：上传的 zip 可能很大，同步写会阻塞事件循环
+    await fsp.writeFile(zipPath, zipBuf);
     try {
       const r = await dataBackup.importZip(zipPath);
       // 导入会覆盖 config.json；必须立刻用新 Cookie/Token 打一次 Iwara 登录，不能只写盘。
