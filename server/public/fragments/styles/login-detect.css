@@ -1,0 +1,15 @@
+
+/* 2026-09-01 设置页「检测登录状态」多行块（与油猴面板同一套格式） */
+.login-detect {
+  font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.7;
+  white-space: pre-wrap; word-break: break-word;
+  margin: 8px 0 0; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card2); color: var(--text);
+  min-height: 24px;
+}
+.login-detect.ok { border-color: rgba(46,160,67,.5); background: rgba(46,160,67,.08); }
+.login-detect.warn { border-color: rgba(217,119,6,.5); background: rgba(217,119,6,.08); }
+.login-detect.err { border-color: rgba(220,38,38,.5); background: rgba(220,38,38,.07); }
+:root[data-theme="night"] .login-detect.ok { border-color: rgba(74,222,128,.5); background: rgba(74,222,128,.08); }
+:root[data-theme="night"] .login-detect.warn { border-color: rgba(251,191,36,.5); background: rgba(251,191,36,.08); }
+:root[data-theme="night"] .login-detect.err { border-color: rgba(248,113,113,.5); background: rgba(248,113,113,.08); }
