@@ -203,6 +203,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.4 | **作者子目录并入文件名模板**（模板 v1.7.0）：原先「作者子目录」是独立开关 `useAuthorSubdir`，与 `fileNameTemplate` 各管一半；现模板里的 `/` 直接作目录分隔，写 `{AUTHOR}/Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]` 即按作者分目录、不写则存下载根目录，开关整体移除（`config.js` / `config.example.json` / `routes/settings.js` / 设置面板下拉 / `app.js` 两处引用一并清理）。实现要点：`applyFileNameTemplate` 把结果按 `/` 分段、逐段 `sanitizeFileName`（原先整串 sanitize 会把 `/` 换成 `_`，目录根本写不出来），空段与 `.`/`..` 段丢弃；`config.normalizeFileNameTemplate` 直接拒绝绝对路径与含 `..` 的模板并回落默认值；`downloader.js` 两处与 `rename-files.js` 一处不再单独拼 `authorDir`，直接用模板产出的相对路径 |
 | 1.7.3 | ①下载列表「▶ 播放」样式：它是 `<a>`，此前只有 `.mm-play-btn` 的尺寸规则、没有按钮外观，显示成裸链接；新增 `a.mm-play-btn` 显式补齐边框/圆角/底色/文字色与 hover，不依赖 `.btn` 的层叠顺序。②代码拆分：`bindProgress` 99 行 → 拆出 `refreshTask` / `bindTaskButtons` / `bindRowActions` + `ROW_ACTIONS` 映射表，`bindProgress` 收敛为 3 行；`bindSettingsSave` 52 行 → 拆出 `readSettingsForm` / `afterSettingsSaved`。行内按钮的 5 套分支原本各写一遍，改为查表分发 |
 | 1.7.2 | 修复 `<a>` 当按钮用时丢样式（根因：按钮规则限定 `button.` 前缀）：下载列表「▶ 播放」与顶栏「油猴脚本」都是 `<a>`，只拿到尺寸、没有边框/底色/文字色，显示成裸链接；现补 `btn` 类并由 `.btn` 承接按钮外观，`a.ghost` 去下划线 |
 | 1.7.1 | 同步模板 1.5.0：①顶栏徽章元素 id 由 `iwaraUserBadge` 统一为 `UserBadge`（`topbar/badge.html` + `app.js` 三处选择器）；②修复 `topbar/userscript.html` 里「安装油猴脚本」按钮样式——按钮类名与 `style.css` 对不上，改为 `ghost hbtn` 后恢复顶栏按钮外观；③框架 `app.js` 新增 `server.drain()` 优雅关停：自动更新重启前等在途响应写完，避免静态资源被截断；④`auto-update` 复制新版本期间挂起文件监听，避免复制途中的中间态触发误重启 |

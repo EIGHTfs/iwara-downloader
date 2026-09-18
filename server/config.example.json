@@ -10,7 +10,6 @@
   "aria2Token": "",
   "downloadPath": "/path/to/your/Iwara/",
   "fileNameTemplate": "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]",
-  "useAuthorSubdir": false,
   "showLikedInSearch": true,
   "autoLike": false,
   "autoFollow": false,
@@ -18,5 +17,8 @@
   "passwordHash": "",
   "sessionHours": 72,
   "checkDownloadLink": false,
-  "downloadToggles": { "video": true, "json": true }
+  "downloadToggles": {
+    "video": true,
+    "json": true
+  }
 }

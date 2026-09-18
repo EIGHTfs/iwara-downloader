@@ -48,10 +48,10 @@ const DEFAULT_CONFIG = {
   // 文件名模板（学油猴脚本 downloadPath.ts 的变量替代，可自定义）：
   //   支持 {TITLE} {ALIAS} {ID} {AUTHOR} {QUALITY} {UPLOADTIME} {NOWTIME}
   //   例：Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]  （不要写 .mp4）
+  //   模板里的 "/" 是目录分隔：写 {AUTHOR}/Iwara_-_{TITLE}_[{ID}] 即按作者分目录；
+  //   不写则直接存下载根目录（原先独立的「作者子目录」开关已并入模板）
   //   必须含 {ID}：封面 thumbs/<id>.jpg、sidecar json、视频文件都靠网址里的 id 对上
   fileNameTemplate: "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]",
-  // 文件名模板占位（保留原始文件名，仅作者子目录）：<root>/<作者>/<原名>
-  useAuthorSubdir: false,
   // 搜索结果标注已点赞（列表带 ❤️）
   showLikedInSearch: true,
   // 下载时自动点赞 / 关注作者（需已登录 Iwara）
@@ -79,6 +79,9 @@ function templateHasId(t) {
 
 function normalizeFileNameTemplate(raw) {
   let t = String(raw || "").trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
+  // 模板可含 "/" 分段（如 {AUTHOR}/{TITLE}_[{ID}]），但拒绝绝对路径与 .. 分段：
+  //   这类写法只可能是误输入或恶意构造，直接回落默认模板，不做静默改写。
+  if (t.startsWith("/") || /(^|\/)\.\.(\/|$)/.test(t)) t = "";
   if (!t || !templateHasId(t)) t = DEFAULT_FILE_NAME_TEMPLATE;
   return t;
 }

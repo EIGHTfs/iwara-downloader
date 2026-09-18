@@ -1071,7 +1071,6 @@ function fillSettings(s) {
   settings = s || {};
   $("#set-downloadPath").value = settings.downloadPath || "";
   $("#set-fileNameTemplate").value = (settings.fileNameTemplate || "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]").replace(/\.(mp4|webm|mov)$/i, "");
-  $("#set-useAuthorSubdir").value = settings.useAuthorSubdir ? "true" : "false";
   if ($("#set-showLikedInSearch")) $("#set-showLikedInSearch").checked = settings.showLikedInSearch !== false;
   if ($("#set-autoLike")) $("#set-autoLike").checked = !!settings.autoLike;
   if ($("#set-autoFollow")) $("#set-autoFollow").checked = !!settings.autoFollow;
@@ -1176,7 +1175,6 @@ function readSettingsForm() {
   const body = {
     downloadPath: $("#set-downloadPath").value.trim(),
     fileNameTemplate: tpl,
-    useAuthorSubdir: $("#set-useAuthorSubdir").value === "true",
     showLikedInSearch: $("#set-showLikedInSearch") ? $("#set-showLikedInSearch").checked : true,
     autoLike: $("#set-autoLike") ? $("#set-autoLike").checked : false,
     autoFollow: $("#set-autoFollow") ? $("#set-autoFollow").checked : false,

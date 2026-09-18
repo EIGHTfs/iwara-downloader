@@ -107,8 +107,11 @@ function scanPlan() {
       continue;
     }
     const destName = expectedName(id, { title, name: alias || author, username: author, quality: entry.quality, createdAt: entry.createdAt }, c, base);
-    const authorDir = c.useAuthorSubdir ? downloader.sanitizeFileName(entry.username || "unknown") : "";
-    const to = authorDir ? path.join(root, authorDir, destName) : path.join(path.dirname(from), destName);
+    // destName 可能含 "作者/文件名"（模板里写了 {AUTHOR}/）；带目录时相对下载根，
+    //   否则维持原位改名（只换文件名，不动所在目录）
+    const to = destName.includes("/")
+      ? path.join(root, destName)
+      : path.join(path.dirname(from), destName);
     if (path.resolve(from) === path.resolve(to)) continue;
     let exists = false;
     try { exists = fs.existsSync(to); } catch (_) { exists = false; }

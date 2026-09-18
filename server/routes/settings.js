@@ -34,7 +34,7 @@ module.exports = function register(api) {
         if (parsed.accessToken) body.iwaraAccessToken = parsed.accessToken;
       }
     }
-    const allowed = ["iwaraCookie", "iwaraToken", "iwaraAccessToken", "downloadBackend", "concurrency", "aria2Path", "aria2Token", "downloadPath", "fileNameTemplate", "useAuthorSubdir", "showLikedInSearch", "autoLike", "autoFollow", "sessionHours", "port", "checkDownloadLink", "iwaraCfgIp", "aria2Dns", "downloadToggles", "playPublic"];
+    const allowed = ["iwaraCookie", "iwaraToken", "iwaraAccessToken", "downloadBackend", "concurrency", "aria2Path", "aria2Token", "downloadPath", "fileNameTemplate", "showLikedInSearch", "autoLike", "autoFollow", "sessionHours", "port", "checkDownloadLink", "iwaraCfgIp", "aria2Dns", "downloadToggles", "playPublic"];
     const oldDownloadPath = c.downloadPath;
     for (const k of allowed) {
       if (body[k] === undefined) continue;
@@ -43,7 +43,7 @@ module.exports = function register(api) {
         c[k] = cfg.normalizeDownloadToggles(body[k]);
         continue;
       }
-      if (k === "showLikedInSearch" || k === "autoLike" || k === "autoFollow" || k === "useAuthorSubdir" || k === "checkDownloadLink") {
+      if (k === "showLikedInSearch" || k === "autoLike" || k === "autoFollow" || k === "checkDownloadLink") {
         c[k] = body[k] === true || body[k] === "true" || body[k] === 1 || body[k] === "1";
         continue;
       }

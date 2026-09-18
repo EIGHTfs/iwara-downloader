@@ -187,12 +187,23 @@ function applyFileNameTemplate(template, info) {
   for (const k of Object.keys(vars)) {
     name = name.split(`{${k}}`).join(vars[k]);
   }
-  name = sanitizeFileName(name);
-  name = name.replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
+  // 模板里写 {AUTHOR}/ 即等效「作者子目录」：斜杠保留为目录分隔。
+  //   逐段处理：先丢弃空段（避免 "a//b" 产生空目录），再把危险字符换成 _；
+  //   "." / ".." 整段丢弃，防止路径穿越。
+  const parts = String(name)
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((seg) => seg.trim() !== "" && seg.trim() !== "." && seg.trim() !== "..")
+    .map((seg) => sanitizeFileName(seg))
+    .filter((seg) => seg !== "");
+  if (!parts.length) parts.push(sanitizeFileName(String(info.id || "").trim() || "unnamed"));
+  // 末段是文件名：去扩展名 + 补 ID
+  let last = parts[parts.length - 1].replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
   const vid = String(info.id || "").trim();
-  if (vid && name.indexOf(vid) < 0) name += "_[" + vid + "]";
-  if (!name) name = sanitizeFileName(vid || "unnamed");
-  return name + ".mp4";
+  if (vid && last.indexOf(vid) < 0) last += "_[" + vid + "]";
+  if (!last) last = sanitizeFileName(vid || "unnamed");
+  parts[parts.length - 1] = last;
+  return parts.join("/") + ".mp4";
 }
 
 function safeJoin(root, sub) {
@@ -911,8 +922,8 @@ async function runAria2Download(item, c, info) {
 
 // HTTP 后端：计算保存路径 → 已存在跳过 → 下载 → 完成收尾（索引/缩略图）
 async function runHttpDownload(item, c, info) {
-  const authorDir = c.useAuthorSubdir ? sanitizeFileName(info.author || item.author || "unknown") : "";
-  item.savePath = authorDir ? safeJoin(c.downloadPath, path.join(authorDir, item.file)) : safeJoin(c.downloadPath, item.file);
+  // 作者目录由文件名模板决定（模板里写 {AUTHOR}/ 即建子目录），此处不再单独拼接
+  item.savePath = safeJoin(c.downloadPath, item.file);
   fs.mkdirSync(path.dirname(item.savePath), { recursive: true });
   const toggles = cfg.normalizeDownloadToggles(c.downloadToggles);
   if (!toggles.video) {
@@ -1046,11 +1057,14 @@ async function runDownloadLoop() {
 
 // ---------- 控制 ----------
 function makeTaskItem(it, c, root) {
-  const authorDir = c.useAuthorSubdir ? sanitizeFileName(it.author || "unknown") : "";
-  const file = sanitizeFileName(it.file || `${it.id}.mp4`);
-  const savePath = authorDir
-    ? safeJoin(root, path.join(authorDir, file))
-    : safeJoin(root, file);
+  // 目录层由模板决定；it.file 可能已含 "作者/文件名"，逐段 sanitize 后拼接
+  const rel = String(it.file || `${it.id}.mp4`)
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((seg) => sanitizeFileName(seg))
+    .filter((seg) => seg && seg !== "." && seg !== "..")
+    .join("/") || sanitizeFileName(`${it.id}.mp4`);
+  const savePath = safeJoin(root, rel);
   return {
     id: it.id,
     title: it.title || "",
