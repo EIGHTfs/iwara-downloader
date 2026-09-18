@@ -30,6 +30,7 @@ auth.startCleanup();
 const iwaraApi = require("./lib/iwara-api");
 const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
+const { createFragmentAssembler } = require("./framework/fragment-assembler");
 const searchDateRange = require("./framework/search-date-range.cjs");
 const { createRegistry } = require("./framework/route-registry");
 // 用户数据备份/恢复：走框架层通用工厂（createBackup），项目只传配置
