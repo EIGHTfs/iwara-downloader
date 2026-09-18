@@ -1,0 +1,146 @@
+  <!-- ============ 设置 ============ -->
+  <div class="tab-panel" id="panel-settings">
+    <div class="card">
+      <h2>下载路径与命名</h2>
+      <p class="hint">直连后端填本机路径；Aria2 后端填 Aria2 所在机器上的路径。模板不要写 <code>.mp4</code>，保存时自动补扩展名。</p>
+      <div class="row" style="align-items:flex-end">
+        <label style="flex:1">下载根目录
+          <input type="text" id="set-downloadPath" placeholder="下载路径根目录" style="width:100%">
+        </label>
+        <button class="ghost" id="browsePathBtn" type="button" title="读取本地选择目录">📂</button>
+      </div>
+      <div class="row mt">
+        <label style="flex:1">文件名模板
+          <input type="text" id="set-fileNameTemplate" placeholder="Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]" style="width:100%">
+        </label>
+      </div>
+      <p class="hint" style="margin-top:8px">必须含 <code>{ID}</code>：封面 <code>&lt;id&gt;.jpg</code>、json、视频文件都靠这个 id 对上。其它变量：<code>{TITLE}</code> 标题　<code>{ALIAS}</code> 作者显示名　<code>{AUTHOR}</code> 作者用户名　<code>{QUALITY}</code> 清晰度　<code>{UPLOADTIME}</code> 上传时间　<code>{NOWTIME}</code> 下载时间</p>
+      <div class="row mt">
+        <label>作者子目录
+          <select id="set-useAuthorSubdir">
+            <option value="false">否（直接存根目录）</option>
+            <option value="true">是</option>
+          </select>
+        </label>
+      </div>
+      <h3 style="margin:14px 0 8px;font-size:14px;color:var(--primary)">✏️ 按模板重命名文件</h3>
+      <p class="hint" style="margin:4px 0 8px">只认 json/index 里的 id。预览后点确认执行（无弹窗）。目标已存在会失败，可对那一条点「强制执行」覆盖重复。</p>
+      <div class="row">
+        <button id="renamePreviewBtn" type="button">预览重命名计划</button>
+        <button id="renameGoBtn" type="button">确认执行</button>
+        <span class="status" id="renameStatus"></span>
+      </div>
+      <div id="renamePlan"></div>
+    </div>
+
+    <div class="card">
+      <h2>点赞 / 关注</h2>
+      <p class="hint">需已登录 Iwara。下载时自动点赞/关注失败不会中断下载。搜索标注依赖接口返回的 liked 字段。</p>
+      <div class="row">
+        <label><input type="checkbox" id="set-showLikedInSearch"> 搜索列表标注已点赞</label>
+      </div>
+      <div class="row mt">
+        <label><input type="checkbox" id="set-autoLike"> 下载视频时自动点赞</label>
+      </div>
+      <div class="row mt">
+        <label><input type="checkbox" id="set-autoFollow"> 下载视频时自动关注作者</label>
+      </div>
+
+    </div>
+    <div class="card">
+      <h2>播放</h2>
+      <div class="row">
+        <label><input type="checkbox" id="set-playPublic" checked> 视频播放公开（选中 = 免登录播放，不选 = 需服务端登录）</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>下载后端</h2>
+      <div class="row">
+        <label>后端
+          <select id="set-downloadBackend">
+            <option value="direct">直连（Node 下载，断点续传）</option>
+            <option value="aria2">Aria2（JSON-RPC 推送）</option>
+          </select>
+        </label>
+        <label>并发数 <input type="number" id="set-concurrency" min="1" max="32" style="width:70px"></label>
+      </div>
+      <div class="row mt">
+        <label><input type="checkbox" id="set-dlVideo" checked> 视频</label>
+        <label><input type="checkbox" id="set-dlJson" checked> json（自己生成的索引）</label>
+      </div>
+      <p class="hint">下载内容只在设置里改；进度页不再改并发。</p>
+      <div class="row mt">
+        <label style="flex:1">Aria2 RPC <span class="badge" id="aria2SameBadge" style="display:none"></span>
+          <input type="text" id="set-aria2Path" placeholder="RPC 地址" style="width:100%">
+        </label>
+      </div>
+      <div class="row mt">
+        <label style="flex:1">Aria2 Token
+          <input type="password" id="set-aria2Token" placeholder="已保存则留空不改" style="width:100%">
+        </label>
+      </div>
+      <div class="row mt">
+        <label style="flex:1">Cloudflare 边缘 IP（直连 api.iwara.tv 目标）
+          <input type="text" id="set-iwaraCfgIp" placeholder="104.26.12.12" style="width:100%">
+        </label>
+      </div>
+      <div class="row mt">
+        <label style="flex:1">Aria2 DNS（解析 *.iwara.tv；留空 = 不传）
+          <input type="text" id="set-aria2Dns" placeholder="10.10.10.64" style="width:100%">
+        </label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Iwara 凭证</h2>
+      <p class="hint">可粘贴油猴脚本复制的组合文本（Cookie= / Token= / AccessToken=），或只填 Cookie。油猴脚本见页头「油猴脚本」。</p>
+      <div class="row">
+        <label style="flex:1">Cookie / 凭证文本
+          <textarea id="set-iwaraCookie" rows="4" placeholder="粘贴新凭证后点保存；留空表示不改已保存的值" style="width:100%"></textarea>
+        </label>
+      </div>
+      <div class="row mt">
+        <button id="gbLoginCheckBtn" type="button">检测登录状态</button>
+      </div>
+      <pre id="gbLoginStatus" class="login-detect"></pre>
+    </div>
+
+    <div class="card">
+      <h2>修改密码</h2>
+      <div class="row">
+        <input type="password" id="newPwd" placeholder="新密码（至少 4 位）">
+        <button class="primary" id="changePwdBtn" type="button">修改</button>
+      </div>
+      <div class="status" id="pwdStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>视频索引</h2>
+      <p class="hint">总表 <code>iwara-index.json</code>：以视频 id 为键，只存作者名/用户名、标题、fileId、时长、tags、上传日。不算 hash。下载目录本机可写则写到那里；Aria2 远程路径写不了时写到服务数据目录。可导入别人 dump，或扫描下载目录 json。</p>
+      <div class="row">
+        <button class="primary" id="exportIndexBtn" type="button">⬇ 导出索引</button>
+        <button class="ghost" id="importIndexBtn" type="button">⬆ 导入索引</button>
+        <button class="ghost" id="scanIndexBtn" type="button">扫描下载目录</button>
+        <input type="file" id="importIndexFile" accept=".json,application/json" style="display:none">
+      </div>
+      <div class="status" id="indexStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>📦 数据备份 / 恢复</h2>
+      <p class="hint">导出为 zip：包含全部用户数据（配置、搜索记录、下载任务、CDN 状态等，按 <code>userdata-manifest.json</code> 清单）。换机/重装后导入即可恢复。</p>
+      <div class="row">
+        <button class="primary" id="exportDataBtn" type="button">⬇ 导出用户数据</button>
+        <button class="ghost" id="importDataBtn" type="button">⬆ 导入用户数据</button>
+        <input type="file" id="importDataFile" accept=".zip" style="display:none">
+      </div>
+      <div class="status" id="dataStatus"></div>
+    </div>
+
+    <div class="row mt">
+      <div class="status" id="settingsStatus"></div>
+    </div>
+
+    <!-- @frag:auto-update-card -->
+  </div>

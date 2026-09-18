@@ -6,12 +6,12 @@
 //
 // 三条自动修正规则（来源：旧插件 extension/popup.js enforceDateRules）：
 //   规则1：结束日期不能超过今天 → 结束回退到今天
-//          // 用户原话：「结束不能比今天晚」
+//          // 「结束不能比今天晚」
 //   规则2：用户改了开始日期，且开始晚于结束 → 开始回退到结束
-//          // 用户原话：「开始比结束晚变成结束」——主体是开始，开始变
+//          // 「开始比结束晚变成结束」——主体是开始，开始变
 //          // 示例：开始 9.4 结束 9.3 → 开始变成 9.3
 //   规则3：用户改了结束日期，且结束早于开始 → 开始跟随结束回退
-//          // 用户原话：「结束比开始早变成开始」——主体是开始，开始变
+//          // 「结束比开始早变成开始」——主体是开始，开始变
 //          // 示例：开始 9.3 结束改到 9.2 → 开始变成 9.2
 //
 // AI 思路：两条规则方向一致——开始总是跟随结束。
@@ -92,14 +92,14 @@ function enforceDateRules(startDate, endDate, today, changedField) {
   }
 
   // 规则1：结束日期不能超过今天 → 结束回退到今天
-  // 用户原话：「结束不能比今天晚」
+  // 「结束不能比今天晚」
   if (end && end > todayStr2) {
     end = todayStr2;
     changed.push("end-clamp-today");
   }
 
   // 规则2：用户改了开始日期，且开始晚于结束 → 开始回退到结束
-  // 用户原话：「开始比结束晚变成结束」——主体是开始，开始变
+  // 「开始比结束晚变成结束」——主体是开始，开始变
   // 示例：开始 9.4 结束 9.3 → 开始变成 9.3
   if (changedField === "start" && start && end && start > end) {
     start = end;
@@ -107,7 +107,7 @@ function enforceDateRules(startDate, endDate, today, changedField) {
   }
 
   // 规则3：用户改了结束日期，且结束早于开始 → 开始跟随结束回退
-  // 用户原话：「结束比开始早变成开始」——主体是开始，开始变（跟随结束往回走）
+  // 「结束比开始早变成开始」——主体是开始，开始变（跟随结束往回走）
   // 示例：开始 9.3 结束改到 9.2 → 开始变成 9.2（不是结束卡在 9.3）
   // AI 思路：两条规则方向一致——用户动了哪个框，另一个框跟随适配。
   //   规则2：动开始 → 开始跟随结束；规则3：动结束 → 开始跟随结束
@@ -159,8 +159,10 @@ function resolveRange(startDate, endDate) {
 // ═══════════════════════════════════════════════════════════════
 function bindInputs(startEl, endEl, onChanged) {
   if (!startEl || !endEl) return;
-  // 初始化：结束日期默认今天
-  if (!endEl.value) endEl.value = todayYmd();
+  // 初始化：开始和结束日期都默认今天
+  const today = todayYmd();
+  if (!startEl.value) startEl.value = today;
+  if (!endEl.value) endEl.value = today;
 
   // apply：执行修正并回写输入框
   // changedField 标识哪个框触发了变更，传给 enforceDateRules

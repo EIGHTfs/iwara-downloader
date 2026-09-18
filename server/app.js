@@ -40,6 +40,30 @@ const thumbCache = require("./lib/thumb-cache.cjs");
 const profileIndex = require("./lib/profile-index");
 
 const { sendJson, readBody, parseCredentialText } = require("./framework/http-utils");
+
+// ---------- HTML 片段组装（框架能力，项目侧只传参） ----------
+// index.html 由 fragments/ 下的分片拼装（框架 fragment-assembler 提供）；
+// 改分片刷新即生效，不重启服务。品牌占位符 @brand:title/@brand:icon/@brand:logo。
+function loadFragmentAssembler() {
+  const fragDir = path.join(PUBLIC_DIR, "fragments");
+  if (!fs.existsSync(fragDir) || !fs.statSync(fragDir).isDirectory()) return null;
+  const FRAMEWORKS = ["index.html", "style.css", "login.html", "setup.html"];
+  const pages = {};
+  for (const name of FRAMEWORKS) {
+    const f = path.join(PUBLIC_DIR, name);
+    try {
+      if (fs.existsSync(f) && fs.statSync(f).isFile()) pages[name] = f;
+    } catch (_) { /* 忽略 */ }
+  }
+  if (!Object.keys(pages).length) return null;
+  let brand = null;
+  try {
+    const bf = path.join(PUBLIC_DIR, "brand.json");
+    if (fs.existsSync(bf)) brand = JSON.parse(fs.readFileSync(bf, "utf8"));
+  } catch (_) { brand = null; }
+  return createFragmentAssembler({ dir: fragDir, pages: pages, watch: true, brand: brand });
+}
+const fragmentAssembler = loadFragmentAssembler();
 const { isDeniedBrowseDir, isSystemJunkName } = require("./framework/path-safe");
 
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -197,7 +221,15 @@ function serveStatic(req, res, pathname) {
     if (ext === ".ico" || ext === ".png") headers["Cache-Control"] = "public, max-age=86400";
     if (req.method === "HEAD") { res.writeHead(200, headers); res.end(); return; }
     if (ext === ".html") {
-      const html = injectAssetVersion(fs.readFileSync(filePath, "utf8"), PUBLIC_DIR);
+      // 片段组装优先：框架文件（含 @frag 指令）由组装器拼装，失败回退原始文件
+      const rel = path.relative(PUBLIC_DIR, filePath).split(path.sep).join("/");
+      let raw = null;
+      if (fragmentAssembler && fragmentAssembler.list().indexOf(rel) >= 0) {
+        const r = fragmentAssembler.render(rel);
+        if (r && r.ok && r.text != null) raw = r.text;
+        else if (r && r.error) console.error("[fragments] " + rel + " 组装失败: " + r.error);
+      }
+      const html = injectAssetVersion(raw != null ? raw : fs.readFileSync(filePath, "utf8"), PUBLIC_DIR);
       headers["Content-Length"] = Buffer.byteLength(html);
       res.writeHead(200, headers);
       return res.end(html);

@@ -1,0 +1,28 @@
+:root {
+  /* ---- 白天模式（蓝白） ---- */
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --card2: #f0f2f5;
+  --border: #e2e5ea;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --accent2: #93c5fd;   /* 渐变次色（浅蓝） */
+  --success: #16a34a;
+  --fail: #dc2626;
+  --warn: #d97706;
+}
+:root[data-theme="night"] {
+  /* ---- 夜间模式（香蕉风深色） ---- */
+  --bg: #151d23;
+  --card: #1e2a33;
+  --card2: #26343f;
+  --border: #33434f;
+  --text: #e6edf3;
+  --muted: #8ba3b5;
+  --primary: #f6b73c;   /* 香蕉黄 */
+  --accent2: #e6a024;
+  --success: #4ade80;
+  --fail: #f87171;
+  --warn: #d97706;
+}
