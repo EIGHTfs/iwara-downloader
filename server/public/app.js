@@ -513,7 +513,7 @@ function updateRowName(row, displayName, p, barCls) {
 function rowActionButtons(it) {
   let actBtns = "";
   if (it.id) {
-    actBtns += '<a class="mm-play-btn" href="/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener" title="本地播放">▶ 播放</a>';
+    actBtns += '<a class="mm-play-btn btn ghost" href="/' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener" title="本地播放">▶ 播放</a>';
   }
   // 缺单条任务的暂停/继续，且无法通过终止中断
   if (it.id && it.state === "downloading") {
