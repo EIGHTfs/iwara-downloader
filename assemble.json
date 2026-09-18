@@ -8,6 +8,11 @@
     "",
     "  用法：../dl-server-template/setup.sh iwara --to ./server"
   ],
+  "brand": {
+    "title": "iwara-downloader",
+    "logo": "brand.png",
+    "icon": "favicon.png"
+  },
   "files": {
     "server/framework/": "server/framework/",
     "server/project/blueprint/login.html": "server/public/login.html",
