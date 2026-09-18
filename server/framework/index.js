@@ -16,6 +16,7 @@ const routesAuth = require("./routes-auth");
 const { createBackup } = require("./data-backup");
 const { createAutoUpdate } = require("./auto-update");
 const markerManifest = require("./marker-manifest");
+const pathSafe = require("./path-safe");
 
 module.exports = {
   // 核心
@@ -42,4 +43,5 @@ module.exports = {
   jsonDir,
   auth,
   routesAuth,
+  pathSafe,
 };
