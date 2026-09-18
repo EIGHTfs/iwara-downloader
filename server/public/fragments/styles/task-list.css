@@ -36,6 +36,14 @@
 /* 行内操作按钮统一尺寸；mm-play-btn 是 <a>（本地播放），其余是 <button> */
 .mm-play-btn, .mm-pause-btn, .mm-resume-btn, .mm-stop-btn,
 .mm-retry-btn, .mm-skip-btn { padding: 2px 8px; font-size: 12px; margin-left: 4px; }
+/* 播放按钮是 <a>：显式补齐按钮外观，不依赖 .btn 的层叠顺序（否则回落成裸链接） */
+a.mm-play-btn {
+  display: inline-flex; align-items: center; gap: 2px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--card2); color: var(--text);
+  text-decoration: none; cursor: pointer; line-height: 1.5;
+}
+a.mm-play-btn:hover { border-color: var(--primary); color: var(--primary); }
 /* 2026-09-02 新增：错误文本点击复制（指针+下划线提示可点击） */
 .mm-err-copy { cursor: pointer; border-bottom: 1px dashed var(--border); }
 .mm-err-copy:hover { text-decoration: underline; }
