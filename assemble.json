@@ -1,16 +1,7 @@
 {
-  "_comment": [
-    "assemble.json —— 从模板取哪些文件到本项目",
-    "  键 = 模板内相对路径（以 / 结尾 = 整目录拷贝）",
-    "  值 = 本项目内相对路径（相对项目根）",
-    "  以 _ 开头的键仅供阅读，解析器会忽略（可放任意说明）",
-    "  init: false = 不初始化蓝图骨架（项目自带 app.js / config）",
-    "",
-    "  用法：../dl-server-template/setup.sh iwara --to ./server"
-  ],
   "brand": {
     "title": "iwara-downloader",
-    "logo": "brand.png",
+    "logo": "iwara-logo.png",
     "icon": "favicon.png",
     "displayTitle": "Iwara<br>Video<br>Downloader"
   },
@@ -27,7 +18,7 @@
     "server/project/blueprint/style.css": "server/public/style.css",
     "server/project/blueprint/fragments/": "server/public/fragments/",
     "server/templates/_iwara-style/fragments/": "server/public/fragments/",
-    "server/templates/_iwara-style/public/iwara-logo.png": "server/public/brand.png",
+    "server/templates/_iwara-style/public/iwara-logo.png": "server/public/iwara-logo.png",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
     "server/templates/_iwara-style/public/play-app.js": "server/public/play-app.js",
     "server/templates/_iwara-style/public/vendor/": "server/public/vendor/"
