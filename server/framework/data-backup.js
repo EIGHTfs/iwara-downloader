@@ -4,6 +4,7 @@
 "use strict";
 
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 const os = require("os");
 const { execFile, execFileSync } = require("child_process");
@@ -108,17 +109,18 @@ function collectFiles(ctx, manifestOpt) {
   return result;
 }
 
-function exportZip(ctx) {
+async function exportZip(ctx) {
   const manifest = generateManifest(ctx);
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), ctx.appName + "-backup-"));
+  const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), ctx.appName + "-backup-"));
   const zipPath = path.join(tmpDir, ctx.appName + "-userdata.zip");
   const files = collectFiles(ctx, manifest);
-  fs.writeFileSync(path.join(tmpDir, MANIFEST_NAME), JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  await fsp.writeFile(path.join(tmpDir, MANIFEST_NAME), JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  // 逐文件复制改为异步：文件数可达数百，同步 IO 会把事件循环整段占满
   for (const rel of files) {
     const src = path.join(ctx.appRoot, rel);
     const dst = path.join(tmpDir, rel);
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(src, dst);
+    await fsp.mkdir(path.dirname(dst), { recursive: true });
+    await fsp.copyFile(src, dst);
   }
   return new Promise((resolve, reject) => {
     const args = ["-r", "-q", zipPath, MANIFEST_NAME].concat(files);
