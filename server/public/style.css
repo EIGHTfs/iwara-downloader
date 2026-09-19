@@ -3,7 +3,10 @@
    2026-08-26：蓝白 = 白天模式（默认）；香蕉风深色 = 夜间模式，网页支持切换
    （夜间配色：深蓝灰底 + 香蕉黄 accent #f6b73c）
    ============================================================ */
-/* @frag:styles/variables.css */
+/* 主题变量：每种主题一个文件（themes/ 专门文件夹，day=白天默认，night=夜间）。
+   必须最先拼装：组件样式统一引用这些变量。 */
+/* @frag:styles/themes/day.css */
+/* @frag:styles/themes/night.css */
 /* @frag:styles/base.css */
 /* @frag:styles/topbar.css */
 /* @frag:styles/topbar-badge.css */

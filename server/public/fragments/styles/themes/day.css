@@ -1,0 +1,16 @@
+/* 主题文件：白天（蓝白，默认）。每主题一文件，存放于 themes/ 专门文件夹。
+   由 style.css 的 @frag 指令先于其它组件样式拼装，组件样式统一引用本变量集。 */
+:root {
+  /* ---- 白天模式（蓝白） ---- */
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --card2: #f0f2f5;
+  --border: #e2e5ea;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --primary: #2563eb;
+  --accent2: #93c5fd;   /* 渐变次色（浅蓝） */
+  --success: #16a34a;
+  --fail: #dc2626;
+  --warn: #d97706;
+}

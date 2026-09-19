@@ -479,7 +479,7 @@ function listCatalog(root) {
         continue;
       }
       // ③ 有视频 → 用 sidecar 元数据，总表兜底补充
-      result[id] = Object.assign({}, catalogMap[id] || {}, entry);
+      result[id] = Object.assign({ rel: relOf(root, videoFile) }, catalogMap[id] || {}, entry);
     }
   }
 
@@ -488,10 +488,22 @@ function listCatalog(root) {
     if (result[id]) continue;
     const videoFile = findExistingById(root, id);
     if (!videoFile) continue;
-    result[id] = entry;
+    result[id] = Object.assign({ rel: relOf(root, videoFile) }, entry);
   }
 
   return { count: Object.keys(result).length, videos: result };
+}
+
+// 视频所在目录（相对下载根，根目录 = ""）。供播放页按文件夹分组。
+// relOf 不依赖平台分隔符：统一输出 "/"。
+function relOf(root, file) {
+  try {
+    const r = path.relative(root, path.dirname(file));
+    if (!r || r === ".") return "";
+    return r.replace(/\\/g, "/");
+  } catch (_) {
+    return "";
+  }
 }
 
 function readEntry(id) {

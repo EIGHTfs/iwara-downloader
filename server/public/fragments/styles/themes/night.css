@@ -1,17 +1,6 @@
-:root {
-  /* ---- 白天模式（蓝白） ---- */
-  --bg: #f5f6f8;
-  --card: #ffffff;
-  --card2: #f0f2f5;
-  --border: #e2e5ea;
-  --text: #1f2937;
-  --muted: #6b7280;
-  --primary: #2563eb;
-  --accent2: #93c5fd;   /* 渐变次色（浅蓝） */
-  --success: #16a34a;
-  --fail: #dc2626;
-  --warn: #d97706;
-}
+/* 主题文件：夜间（香蕉风深色）。每主题一文件，存放于 themes/ 专门文件夹。
+   切换机制：<html> 根元素 data-theme="night"（theme-init.js 从 localStorage 读取设置），
+   本文件选择器后于 day.css 拼装，data-theme="night" 时覆盖白天变量。 */
 :root[data-theme="night"] {
   /* ---- 夜间模式（香蕉风深色） ---- */
   --bg: #151d23;

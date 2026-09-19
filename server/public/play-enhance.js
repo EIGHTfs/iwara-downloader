@@ -36,6 +36,29 @@ function enhancePlayer(art) {
   art.on("video:ratechange", syncSpeedBtn);
   art.on("video:play", syncSpeedBtn);
 
+  // 3) autoplay 被浏览器拦截（有声自动播放策略）时：首次点画面立即开始播放
+  //    自动播放失败约 1 秒后仍处于暂停 → 武装「点击即播」；按下瞬间 play()，并把这个
+  //    click 拦下来（否则刚 play 又被内核「单击暂停」停掉）。与第 2 段长按互斥：长按要求 playing。
+  var tapArmed = false;
+  var suppressTapClick = false;
+  setTimeout(function () {
+    if (art.video && art.video.paused && !art.playing) tapArmed = true;
+  }, 800);
+  art.template.$player.addEventListener("pointerdown", function (e) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var t = e.target;
+    if (t && t.closest && t.closest(".art-bottom")) return;
+    if (tapArmed && art.video && art.video.paused && !art.playing) {
+      tapArmed = false;
+      suppressTapClick = true;
+      setTimeout(function () { suppressTapClick = false; }, 80);
+      art.play();
+    }
+  }, true);
+  art.template.$player.addEventListener("click", function (e) {
+    if (suppressTapClick) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+
   // 2) 桌面端长按画面 3x 快进（官方 fastForward 仅移动端生效，桌面端自定义实现）
   var IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod|HarmonyOS/i.test(navigator.userAgent || "");
   if (IS_MOBILE) return;
