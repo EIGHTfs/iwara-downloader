@@ -57,8 +57,10 @@
     "server/templates/_iwara-style/server/lib/auto-update.js": "server/lib/auto-update.js",
     "server/templates/_iwara-style/public/play-app.js": "server/public/play-app.js",
     "server/templates/_iwara-style/public/play-enhance.js": "server/public/play-enhance.js",
+    "server/templates/_iwara-style/public/play-list.js": "server/public/play-list.js",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
-    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/"
+    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/",
+    "server/templates/_downloader-style/fragments/styles/themes/": "server/public/fragments/styles/themes/"
   },
   "init": false
 }

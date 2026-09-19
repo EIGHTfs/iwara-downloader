@@ -3,7 +3,7 @@ header {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: linear-gradient(135deg, var(--card), var(--card2));
+  background: linear-gradient(135deg, var(--primary), var(--accent2)); /* 白天顶栏蓝（蓝→浅蓝，文字沿用深色） */
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
