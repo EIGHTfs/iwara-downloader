@@ -29,17 +29,66 @@ const fs = require("fs");
 const path = require("path");
 const https = require("https");
 const { spawn, execSync } = require("child_process");
-// marker-manifest 与 auto-update 可能同目录（framework/）或由项目拷贝到 lib/。
-// require-sibling 自举：本文件在 framework/ 时同目录加载；被拼到 lib/ 时向上找。
-let requireUp;
-try {
-  ({ requireUp } = require("./require-sibling"));
-} catch (_) {
-  ({ requireUp } = require("../framework/require-sibling"));
+// require-sibling 自举：定位同框架内的兄弟模块（不受本文件落点影响）。
+//
+// 历史：早期 framework/ 是平铺的，本文件可能放 framework/ 也可能被拼到 lib/，
+// 于是靠 try 同目录、catch 向上找 "../framework" 兜底。
+// 现在 framework/ 按功能分子目录（core/route/http/store/...），兄弟模块既不同级、
+// 也不在祖先链上（本文件在 update/，marker-manifest 在 store/），故改为：
+// 按已知相对路径逐个试，再用祖先链兜底——无论本文件落在哪都能找到。
+function _findRequireSibling() {
+  const direct = [
+    "../http/require-sibling.js",              // framework/<子目录>/ → framework/http/
+    "./require-sibling.js",                    // 同目录（整体拷到 lib/ 时）
+    "../require-sibling.js",                   // lib/ → 旁边
+    "../framework/http/require-sibling.js",    // 上一层的 framework/ 里
+    "../framework/require-sibling.js",         // 上一层 framework/ 平铺版
+  ];
+  for (const p of direct) {
+    try { return require(p); } catch (_) { /* 试下一个 */ }
+  }
+  // 祖先链兜底：从本文件目录逐级向上，找 require-sibling.js 或 <dir>/http/require-sibling.js
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    for (const rel of ["require-sibling.js", path.join("http", "require-sibling.js")]) {
+      const cand = path.join(dir, rel);
+      try { if (fs.existsSync(cand)) return require(cand); } catch (_) { /* 继续 */ }
+    }
+    const up = path.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  throw new Error("auto-update: 找不到 require-sibling.js（framework 目录结构可能已变更）");
 }
+
+const { requireUp } = _findRequireSibling();
+
+// 候选目录：向上找到 framework 根，把它的各子目录与自身目录都作为候选。
+// 按名找模块时逐个试，故框架内部再调整子目录布局也不必改这里。
+function _frameworkSearchDirs() {
+  const dirs = [__dirname];
+  let dir = __dirname;
+  for (let i = 0; i < 6; i++) {
+    let names = [];
+    try {
+      names = fs.readdirSync(dir, { withFileTypes: true })
+        .filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch (_) { names = []; }
+    // 认定 framework 根：含这些特征子目录的那一层
+    if (names.includes("core") || names.includes("route") || names.includes("http")) {
+      for (const n of names) dirs.push(path.join(dir, n));
+      dirs.push(dir);
+      break;
+    }
+    const up = path.dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return dirs;
+}
+
 const { manifestPaths } = requireUp(__dirname, "marker-manifest.js", {
-  // lib/ 拼接版：marker-manifest 在兄弟目录 framework/，不在祖先链上
-  dirs: [path.join(__dirname, "..", "framework"), __dirname],
+  dirs: _frameworkSearchDirs(),
 });
 
 /**

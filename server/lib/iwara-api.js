@@ -21,7 +21,7 @@ const https = require("https");
 const zlib = require("zlib");
 
 const cfg = require("../config");
-const jsonDir = require("../framework/json-dir");
+const jsonDir = require("../store/json-dir.js");
 const DATA_DIR = jsonDir.SERVER_DIR;
 const JSON_DIR = jsonDir.JSON_DIR;
 

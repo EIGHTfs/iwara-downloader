@@ -7,7 +7,7 @@
 //   2. 祖先链模式：从 startDir 逐级向上查找（如 server/ → 项目根）
 //
 // 用法：
-//   const { requireUp } = require("../framework/require-sibling.js");
+//   const { requireUp } = require("../http/require-sibling.js");
 //   // dirs 模式（lib/auto-update 找 framework/marker-manifest）：
 //   const { manifestPaths } = requireUp(__dirname, "marker-manifest.js",
 //       { dirs: [path.join(__dirname, "..", "framework"), __dirname] });

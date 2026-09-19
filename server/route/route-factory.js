@@ -11,7 +11,7 @@
 //                      如需正则请用 route-registry 的闭包式注册）
 "use strict";
 
-const { sendJson, readBody } = require("./http-utils");
+const { sendJson, readBody } = require("../http/http-utils.js");
 const routeCore = require("./route-core");
 
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH"]);

@@ -8,10 +8,10 @@ require("./helpers/test-log.cjs");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const httpUtils = require("../server/framework/http-utils");
-const pathSafe = require("../server/framework/path-safe");
-const fsAsync = require("../server/framework/fs-async");
-const htmlUtils = require("../server/framework/html-utils");
+const httpUtils = require("../server/http/http-utils.js");
+const pathSafe = require("../server/http/path-safe.js");
+const fsAsync = require("../server/http/fs-async.js");
+const htmlUtils = require("../server/http/html-utils.js");
 
 // ---- http.parseCredentialText（iwara 三字段）----
 test("http: parseCredentialText 解析三字段组合文本", () => {
@@ -129,7 +129,7 @@ test("fs-async: readText/writeText 往返", async () => {
 
 // ---- CJS 强制冒烟：server 模块可被 require ----
 test("smoke: cjs-bootstrap 后 server/lib/app-log 可 require", () => {
-  const appLog = require("../server/framework/app-log");
+  const appLog = require("../server/core/app-log.js");
   assert.equal(typeof appLog.install, "function");
   assert.equal(typeof appLog.apiLine, "function");
 });
@@ -141,8 +141,8 @@ test("smoke: server/config 可 require（含 readConfig）", () => {
 });
 
 // ---- 路由（框架 route-core / route-registry）----
-const { createRegistry } = require("../server/framework/route-registry");
-const routeCore = require("../server/framework/route-core");
+const { createRegistry } = require("../server/route/route-registry.js");
+const routeCore = require("../server/route/route-core.js");
 
 test("route: 精确匹配与未命中", () => {
   const r = createRegistry();

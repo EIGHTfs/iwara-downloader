@@ -9,7 +9,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const crypto = require("crypto");
 const api = require("./iwara-api");
-const jsonDir = require("../framework/json-dir");
+const jsonDir = require("../store/json-dir.js");
 
 // 数据目录统一由框架层 json-dir 提供（env DATA_DIR 重定向），本文件不再自行读环境变量
 const DATA_DIR = jsonDir.SERVER_DIR;
