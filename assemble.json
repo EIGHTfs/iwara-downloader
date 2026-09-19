@@ -7,7 +7,7 @@
   },
   "files": {
     "server/framework/assemble/fragment-assembler.js": "server/assemble/fragment-assembler.js",
-    "server/framework/search/search-date-range.cjs": "server/search/search-date-range.cjs",
+    "server/templates/_downloader-style/search/search-date-range.cjs": "server/search/search-date-range.cjs",
     "server/framework/auth/auth.js": "server/auth/auth.js",
     "server/framework/config/config-loader.js": "server/config/config-loader.js",
     "server/framework/core/app-log.js": "server/core/app-log.js",
@@ -34,14 +34,14 @@
     "server/project/blueprint/boot.cjs": "server/boot.cjs",
     "server/lib/start.sh": "start.sh",
     "server/project/blueprint/auto-update-card.js": "server/public/auto-update-card.js",
-    "server/project/blueprint/fragments/": "server/public/fragments/",
-    "server/project/blueprint/index.html/downloader/index.html": "server/public/index.html",
-    "server/project/blueprint/login.html": "server/public/login.html",
-    "server/project/blueprint/login.js": "server/public/login.js",
-    "server/project/blueprint/search-date-range.js": "server/public/search-date-range.js",
-    "server/project/blueprint/setup-init.js": "server/public/setup-init.js",
-    "server/project/blueprint/setup.html": "server/public/setup.html",
-    "server/project/blueprint/style.css": "server/public/style.css",
+    "server/templates/_downloader-style/fragments/": "server/public/fragments/",
+    "server/templates/_downloader-style/public/index.html": "server/public/index.html",
+    "server/templates/_downloader-style/public/login.html": "server/public/login.html",
+    "server/templates/_downloader-style/public/login.js": "server/public/login.js",
+    "server/templates/_downloader-style/public/search-date-range.js": "server/public/search-date-range.js",
+    "server/templates/_downloader-style/public/setup-init.js": "server/public/setup-init.js",
+    "server/templates/_downloader-style/public/setup.html": "server/public/setup.html",
+    "server/templates/_downloader-style/public/style.css": "server/public/style.css",
     "server/project/blueprint/theme-init.js": "server/public/theme-init.js",
     "server/templates/_iwara-style/fragments/scripts.html": "server/public/fragments/scripts.html",
     "server/templates/_iwara-style/fragments/styles/row-thumb.css": "server/public/fragments/styles/row-thumb.css",
@@ -59,8 +59,7 @@
     "server/templates/_iwara-style/public/play-enhance.js": "server/public/play-enhance.js",
     "server/templates/_iwara-style/public/play-list.js": "server/public/play-list.js",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
-    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/",
-    "server/templates/_downloader-style/fragments/styles/themes/": "server/public/fragments/styles/themes/"
+    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/"
   },
   "init": false
 }
