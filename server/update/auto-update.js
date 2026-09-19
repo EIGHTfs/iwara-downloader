@@ -470,6 +470,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
         // apply-staged-update.cjs 应用覆盖（此时无锁）再拉起新进程。
         const stagedDir = path.join(ROOT_DIR, ".auto-update-staged", sha);
         try { fs.rmSync(stagedDir, { recursive: true, force: true }); } catch (_) {}
+        fs.mkdirSync(path.dirname(stagedDir), { recursive: true }); // 父目录 .auto-update-staged/ 可能不存在
         fs.renameSync(extractDir, stagedDir);
         fs.writeFileSync(path.join(ROOT_DIR, ".auto-update-pending.json"), JSON.stringify({
           sha,

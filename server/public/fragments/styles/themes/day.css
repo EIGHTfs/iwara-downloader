@@ -1,5 +1,7 @@
-/* 主题文件：白天（蓝白，默认）。每主题一文件，存放于 themes/ 专门文件夹。
-   由 style.css 的 @frag 指令先于其它组件样式拼装，组件样式统一引用本变量集。 */
+/* downloader 主题：白天（蓝白，默认）。每主题一文件，存放于 themes/ 专门文件夹。
+   本目录为 downloader 系（gbmd/iwara）专用主题，由 _downloader-style 风格模板下发；
+   gallery 等自含主题的风格不走本目录。由 style.css 的 @frag 指令先于其它组件样式拼装，
+   组件样式统一引用本变量集。 */
 :root {
   /* ---- 白天模式（蓝白） ---- */
   --bg: #f5f6f8;
