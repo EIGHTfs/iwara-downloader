@@ -7,7 +7,7 @@
   },
   "files": {
     "server/framework/assemble/fragment-assembler.js": "server/assemble/fragment-assembler.js",
-    "server/framework/assemble/search-date-range.cjs": "server/assemble/search-date-range.cjs",
+    "server/framework/search/search-date-range.cjs": "server/search/search-date-range.cjs",
     "server/framework/auth/auth.js": "server/auth/auth.js",
     "server/framework/config/config-loader.js": "server/config/config-loader.js",
     "server/framework/core/app-log.js": "server/core/app-log.js",
