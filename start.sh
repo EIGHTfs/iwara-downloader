@@ -18,7 +18,14 @@ SERVER_DIR="$ROOT/server"
 PID_FILE="$ROOT/${PROJECT_NAME}.pid"
 LOG_FILE="$SERVER_DIR/server.log"
 CONFIG_FILE="$SERVER_DIR/config.json"
-DEFAULT_PORT="${DEFAULT_PORT:-8642}"
+# 默认端口：优先读 server/config.schema.json 的 port.default —— 各项目端口不同
+#   （gallery 8081、gbmd/iwara 8642），通用脚本不该写死某一个项目的端口。
+#   读不到（未声明/无 schema）才回落到 8642。
+SCHEMA_PORT=""
+if [ -f "$ROOT/server/config.schema.json" ]; then
+  SCHEMA_PORT="$(sed -n 's/.*"port"[^}]*"default"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$ROOT/server/config.schema.json" 2>/dev/null | head -n 1)"
+fi
+DEFAULT_PORT="${DEFAULT_PORT:-${SCHEMA_PORT:-8642}}"
 LOG_ROTATE_BYTES=$((10 * 1024 * 1024))
 STOP_WAIT_SEC=10
 START_WAIT_SEC="${START_WAIT_SEC:-15}"   # 启动前等端口释放的上限（秒）
@@ -37,18 +44,25 @@ warn() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_RESET"; }
 err()  { printf '%s%s%s\n' "$C_RED" "$*" "$C_RESET"; }
 dim()  { printf '%s%s%s\n' "$C_DIM" "$*" "$C_RESET"; }
 
+# 历史 PID 位置（迁移兼容）：老版本把这些 PID 落在 server/ 或 /tmp。
+# 只按「本项目名」枚举，不硬编码具体项目——否则换项目名后这里就成了死代码
+# （曾写死 gbmd.pid / gbmd-macos.pid，别的项目复用时既清不掉旧 PID 也读不到）。
 legacy_pid_files() {
   printf '%s\n' \
     "$SERVER_DIR/app.pid" \
     "$SERVER_DIR/${PROJECT_NAME}.pid" \
-    "$SERVER_DIR/gbmd.pid" \
-    "/tmp/gbmd.pid" \
-    "/tmp/gbmd-macos.pid" \
-    "/tmp/${PROJECT_NAME}.pid"
+    "/tmp/${PROJECT_NAME}.pid" \
+    "/tmp/${PROJECT_NAME}-macos.pid" \
+    "/tmp/start-${PROJECT_NAME}.pid"
 }
 
-export PATH="$ROOT/tool/node/bin:/usr/local/bin:/opt/homebrew/bin:/opt/node/bin:/var/packages/Node.js_v24/target/usr/local/bin:/var/packages/Node.js_v22/target/usr/local/bin:/var/packages/Node.js_v20/target/usr/local/bin:$PATH"
-export FFMPEG="${FFMPEG:-$ROOT/tool/ffmpeg}"
+# 项目自带工具目录：命名为 tool/ 与 tools/ 的都有（gallery 用 tools/），两个都认。
+TOOL_DIR=""
+for d in "$ROOT/tools" "$ROOT/tool"; do
+  if [ -d "$d" ]; then TOOL_DIR="$d"; break; fi
+done
+export PATH="${TOOL_DIR:+$TOOL_DIR/node/bin:}/usr/local/bin:/opt/homebrew/bin:/opt/node/bin:/var/packages/Node.js_v24/target/usr/local/bin:/var/packages/Node.js_v22/target/usr/local/bin:/var/packages/Node.js_v20/target/usr/local/bin:$PATH"
+if [ -n "$TOOL_DIR" ]; then export FFMPEG="${FFMPEG:-$TOOL_DIR/ffmpeg}"; fi
 
 # ---------- Node 定位 ----------
 # start.sh 是「独立可搬运」脚本：它会被直接拷进项目根，而项目里没有 scripts/。

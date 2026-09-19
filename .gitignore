@@ -89,3 +89,21 @@ node_modules.orig/
 # AI 分析报告 / 修复方案（含会话来源，不入公开仓库）
 *修复优化方案*.md
 *AI分析报告*.md
+
+# 模板素材树（由 dl-server-template 的 sync-to-project.sh 落到项目侧）
+# —— 同步后项目里会有这些素材，它们是「组装来源」而非本项目源码，不入库：
+#   server/templates/_<风格>-style/  风格素材（setup.sh 从这里取件组装产出）
+#   server/project/blueprint/        组装蓝图（共用框架/分片/静态资源）
+# 判据：它们在模板仓库维护；入库会与模板副本双份并存，模板更新后反而过期。
+server/templates/
+server/project/
+
+# 模板下发的同步/组装工具（每次同步覆盖，同样在模板仓库维护）
+setup.sh
+assemble-manifest.js
+lib-node.sh
+
+# 框架下发件（由模板 server/framework/ 同步，同上不入库）
+server/framework/
+server/boot.cjs
+server/lib/cjs-bootstrap.cjs

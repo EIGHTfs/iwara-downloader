@@ -8,8 +8,8 @@ const fsp = fs.promises;
 const path = require("path");
 const urlMod = require("url");
 
-const { sendJson } = require("./http-utils");
-const { createFragmentAssembler } = require("./fragment-assembler");
+const { sendJson } = require("../http/http-utils.js");
+const { createFragmentAssembler } = require("../assemble/fragment-assembler.js");
 
 const DEFAULT_PORT = 3000;
 const CACHE_MAX_AGE = 3600;
@@ -73,13 +73,19 @@ async function serveStaticFile(res, publicDir, pathname, mime, transformHtml) {
   } catch (_) { return false; }
 }
 
-function dispatchAuth(req, res, pathname, auth, loginPath, extraPaths, needsSetup) {
+function dispatchAuth(req, res, pathname, auth, loginPath, extraPaths, needsSetup, guestPages) {
   const hasExt = path.extname(pathname);
   if (hasExt) return true; // 静态资源不鉴权
   // 未设置密码（首次初始化阶段）：不做鉴权，允许设置密码/进入页面
   if (typeof needsSetup === "function" && needsSetup()) return true;
 
-  const whitelist = [loginPath, "/api/auth/"].concat(extraPaths || []);
+  // 游客可读页面：画廊语义是「游客能看能传，登录才能改设置」，
+  // 故页面本身不做登录门；写操作由各路由的 requireAuth 单独把守。
+  if (guestPages && !pathname.startsWith("/api/")) return true;
+
+  // 注意：loginPath 允许为空（项目无独立登录页），空串必须剔除 ——
+  // startsWith("") 恒为 true，混进白名单会让所有路径直接放行。
+  const whitelist = [loginPath, "/api/auth/"].concat(extraPaths || []).filter(Boolean);
   if (isWhitelisted(pathname, whitelist)) return true;
 
   const token = auth.extractToken(req);
@@ -87,9 +93,13 @@ function dispatchAuth(req, res, pathname, auth, loginPath, extraPaths, needsSetu
 
   if (pathname.startsWith("/api/")) {
     sendJson(res, { ok: false, error: "未登录" }, 401);
-  } else {
+  } else if (loginPath) {
     res.writeHead(302, { Location: loginPath });
     res.end();
+  } else {
+    // 本服务没有独立登录页（登录走页面内弹窗，如 gallery 的 🔒）：
+    // 不能 302 到空串（会变成自跳转死循环），改为明确告知。
+    sendJson(res, { ok: false, error: "未登录", needsLogin: true }, 401);
   }
   return false;
 }
@@ -113,7 +123,8 @@ async function dispatchRoutes(req, res, url, pathname, routes, ctx) {
  * @param {string}   opts.publicDir      - 静态文件目录
  * @param {Array}    opts.routes         - 路由列表 [{ prefix, handler }]
  * @param {Array}    [opts.publicRoutes] - 认证前放行的路径前缀（如 /api/status）
- * @param {string}   [opts.loginPath]    - 登录页路径
+ * @param {string}   [opts.loginPath]    - 登录页路径；传空串表示本服务没有独立登录页
+ *                                         （登录走页面内弹窗），未登录的页面请求返回 401 JSON
  * @param {object}   [opts.extraMime]    - 额外 MIME
  * @param {function} [opts.transformHtml]- HTML 二次处理 (html, pathname) => string
  * @param {function} [opts.needsSetup]   - 返回 true 时未配置密码：页面请求重定向到
@@ -168,6 +179,7 @@ function createServer(opts) {
     config, auth, publicDir, routes = [],
     publicRoutes = [], loginPath = "/login.html", extraMime = {},
     transformHtml, needsSetup, setupPath = "/setup.html",
+    guestPages = false,   // true=页面不设登录门（游客可读），API 仍按 publicRoutes 把关
     port: portOpt, fragments, onReady,
   } = opts;
 
@@ -223,7 +235,7 @@ function createServer(opts) {
       }
     }
 
-    if (!dispatchAuth(req, res, pathname, auth, loginPath, publicRoutes, needsSetup)) return;
+    if (!dispatchAuth(req, res, pathname, auth, loginPath, publicRoutes, needsSetup, guestPages)) return;
 
     const ctx = { cfg: config, auth, sendJson };
     if (await dispatchRoutes(req, res, url, pathname, routes, ctx)) return;
@@ -242,7 +254,9 @@ function createServer(opts) {
   const port = portOpt || cfgPort || process.env.PORT || DEFAULT_PORT;
 
   server.listen(port, () => {
-    console.log("服务启动: http://localhost:" + port);
+      // 不传 host 时 Node 监听 ::/0.0.0.0（局域网可访问）。
+      // 旧日志只打 localhost，易被误读成「只能本机访问」，故补上局域网地址。
+      console.log("服务启动: http://localhost:" + port + "  (局域网: http://<本机IP>:" + port + ")");
     if (onReady) onReady(port);
   });
 

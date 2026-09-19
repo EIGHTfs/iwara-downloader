@@ -84,15 +84,27 @@ PID 文件：项目根 `iwara-downloader-server.pid`（不入库）。
 ├── scripts/iwara-cred-fetch.user.js  # 油猴凭证采集 + 一键发送
 ├── userdata-manifest.json            # 用户数据文件清单（备份/恢复按此收集）
 └── server/
-    ├── app.js
-    ├── auth.js
-    ├── config.js
+    ├── app.js                        # 项目 HTTP 入口（装配 + 鉴权门 + 静态 + 启动）
+    ├── boot.cjs                      # 零依赖启动器（强制本项目 .js 按 CommonJS 加载）
+    ├── config.js                     # 项目配置读取
     ├── config.example.json           # 配置模板（入库）；真实 config.json 不入库
-    ├── lib/
+    ├── routes/                       # 项目路由，按域拆分（12 个）
+    │   └── auth.js browse.js search.js download.js play.js rename.js
+    │       videos.js settings.js account.js data.js index.js auto-update.js
+    ├── lib/                          # 项目模块 + 通用运行支撑件
     │   ├── iwara-api.js              # Iwara API（IP 直连 + CF 绕过）
-    │   └── downloader.js             # 下载引擎（direct / aria2 + 子域轮换）
+    │   ├── downloader.js             # 下载引擎（direct / aria2 + 子域轮换）
+    │   ├── cjs-bootstrap.cjs         # CJS 强制（boot.cjs 与 test/ 共用，模板下发）
+    │   └── start.sh                  # 启停脚本本体（模板下发，根目录 start.sh 为入口）
+    ├── core/ auth/ config/ http/     # 框架通用件，按功能分层（模板下发）
+    │   route/ store/ update/ assemble/
     └── public/                       # 网页前端
 ```
+
+> `core/` `auth/` `config/` `http/` `route/` `store/` `update/` `assemble/` 与
+> `boot.cjs`、`lib/cjs-bootstrap.cjs`、`lib/start.sh` 由 `dl-server-template` 组装下发，
+> 本仓库不手工维护；`routes/`、`lib/` 下的其余文件与 `app.js` 是本项目自有代码。
+> 二者区分：框架件按功能子目录（`http/path-safe.js`），项目件按领域（`lib/downloader.js`）。
 
 ---
 
@@ -203,6 +215,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.5 | **框架目录按功能分层**：`server/framework/` 平铺 23 个文件 → 8 个功能子目录（`core/` `route/` `auth/` `http/` `config/` `store/` `update/` `assemble/`），`cjs-bootstrap.cjs` 归入 `server/lib/`（原先落在 `framework/` 且不在清单里，`test/helpers/test-log.cjs` 直接引它、等于组装不保证存在）。①`assemble.json` 由整目录条目改为 30 条逐文件条目；②迁移工具改写相对引用 34 处（14 个文件），另手工修 `server/app.js` 的 8 处——它是项目自有入口、不在清单里，工具不会碰它；③同步模板版 `update/auto-update.js`：原写法 `try{require(A)}catch{require(A)}` 两分支相同（等于没兜底），模板改为按已知相对路径逐个试 + 祖先链兜底，且用 `_frameworkSearchDirs()` 按目录特征定位，框架内部再调布局也不用改；④README 目录结构同步实际布局。验证：启动正常、42 路由可达、`node --test test/p0-smoke.test.cjs` 26/26 通过 |
 | 1.7.4 | **作者子目录并入文件名模板**（模板 v1.7.0）：原先「作者子目录」是独立开关 `useAuthorSubdir`，与 `fileNameTemplate` 各管一半；现模板里的 `/` 直接作目录分隔，写 `{AUTHOR}/Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]` 即按作者分目录、不写则存下载根目录，开关整体移除（`config.js` / `config.example.json` / `routes/settings.js` / 设置面板下拉 / `app.js` 两处引用一并清理）。实现要点：`applyFileNameTemplate` 把结果按 `/` 分段、逐段 `sanitizeFileName`（原先整串 sanitize 会把 `/` 换成 `_`，目录根本写不出来），空段与 `.`/`..` 段丢弃；`config.normalizeFileNameTemplate` 直接拒绝绝对路径与含 `..` 的模板并回落默认值；`downloader.js` 两处与 `rename-files.js` 一处不再单独拼 `authorDir`，直接用模板产出的相对路径 |
 | 1.7.3 | ①下载列表「▶ 播放」样式：它是 `<a>`，此前只有 `.mm-play-btn` 的尺寸规则、没有按钮外观，显示成裸链接；新增 `a.mm-play-btn` 显式补齐边框/圆角/底色/文字色与 hover，不依赖 `.btn` 的层叠顺序。②代码拆分：`bindProgress` 99 行 → 拆出 `refreshTask` / `bindTaskButtons` / `bindRowActions` + `ROW_ACTIONS` 映射表，`bindProgress` 收敛为 3 行；`bindSettingsSave` 52 行 → 拆出 `readSettingsForm` / `afterSettingsSaved`。行内按钮的 5 套分支原本各写一遍，改为查表分发 |
 | 1.7.2 | 修复 `<a>` 当按钮用时丢样式（根因：按钮规则限定 `button.` 前缀）：下载列表「▶ 播放」与顶栏「油猴脚本」都是 `<a>`，只拿到尺寸、没有边框/底色/文字色，显示成裸链接；现补 `btn` 类并由 `.btn` 承接按钮外观，`a.ghost` 去下划线 |

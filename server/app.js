@@ -13,16 +13,16 @@ const path = require("path");
 const urlMod = require("url");
 const os = require("os");
 
-const appLog = require("./framework/app-log");
+const appLog = require("./core/app-log");
 // iwara 特有高频轮询端点静默（封面缓存与播放页轮询，避免日志刷屏）
 appLog.install({ quietApis: ["/api/thumb", "/api/play", "/api/play-info"] });
 const cfg = require("./config");
-const auth = require("./framework/auth");
+const auth = require("./auth/auth");
 // 会话持久化到 json/sessions.json，cookie 名沿用 session（兼容既有前端与已登录用户）
 // fallbackHours 让框架写 cookie 时与本项目 config.sessionHours 一致
 // （登录路由已按 remember 显式传 hours，这里只是未传时的兜底）
 auth.init({
-  sessionFile: require("./framework/json-dir").jsonFile("sessions.json"),
+  sessionFile: require("./store/json-dir").jsonFile("sessions.json"),
   cookieName: "iwara_session",
   fallbackHours: require("./config").readConfig().sessionHours || 72
 });
@@ -30,11 +30,11 @@ auth.startCleanup();
 const iwaraApi = require("./lib/iwara-api");
 const downloader = require("./lib/downloader");
 const search = require("./lib/search-cache");
-const { createFragmentAssembler } = require("./framework/fragment-assembler");
-const searchDateRange = require("./framework/search-date-range.cjs");
-const { createRegistry } = require("./framework/route-registry");
+const { createFragmentAssembler } = require("./assemble/fragment-assembler");
+const searchDateRange = require("./assemble/search-date-range.cjs");
+const { createRegistry } = require("./route/route-registry");
 // 用户数据备份/恢复：走框架层通用工厂（createBackup），项目只传配置
-const dataBackup = require("./framework/data-backup").createBackup({
+const dataBackup = require("./store/data-backup").createBackup({
   appName: "iwara-downloader-server",
   appRoot: path.join(__dirname, ".."),
   toolDir: path.join(__dirname, "..", "tool", "bin"),
@@ -46,7 +46,7 @@ const deviceCheck = require("./lib/device-check");
 const thumbCache = require("./lib/thumb-cache.cjs");
 const profileIndex = require("./lib/profile-index");
 
-const { sendJson, readBody, parseCredentialText } = require("./framework/http-utils");
+const { sendJson, readBody, parseCredentialText } = require("./http/http-utils");
 
 // 静态资源根目录：必须在 loadFragmentAssembler() 调用前定义（该函数体引用它，
 // 且第 72 行立即执行，原声明在下方会触发 TDZ ReferenceError）。
@@ -75,7 +75,7 @@ function loadFragmentAssembler() {
   return createFragmentAssembler({ dir: fragDir, pages: pages, watch: true, brand: brand });
 }
 const fragmentAssembler = loadFragmentAssembler();
-const { isDeniedBrowseDir, isSystemJunkName } = require("./framework/path-safe");
+const { isDeniedBrowseDir, isSystemJunkName } = require("./http/path-safe.js");
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -267,7 +267,7 @@ const api = {
   isDeniedBrowseDir, isSystemJunkName
 };
 
-require("./framework/routes-auth")(api);   // 登录/登出/状态/改密（框架层·通用）
+require("./route/routes-auth.js")(api);   // 登录/登出/状态/改密（框架层·通用）
 require("./routes/auth")(api);             // /api/token（iwara 专属）
 require("./routes/settings")(api);
 require("./routes/account")(api);

@@ -2,7 +2,7 @@
 // 框架实现见 ../framework/auto-update.js（createAutoUpdate），本文件不再重复框架代码。
 "use strict";
 
-const { createAutoUpdate } = require("../framework/auto-update.js");
+const { createAutoUpdate } = require("../update/auto-update.js");
 
 module.exports = createAutoUpdate({
   projectName: "iwara-downloader",
