@@ -28,6 +28,8 @@
     "server/framework/store/json-dir.js": "server/store/json-dir.js",
     "server/framework/store/marker-manifest.js": "server/store/marker-manifest.js",
     "server/framework/update/auto-update.js": "server/update/auto-update.js",
+    "server/framework/update/tree-copy.js": "server/update/tree-copy.js",
+    "server/framework/update/apply-staged-update.cjs": "server/update/apply-staged-update.cjs",
     "server/lib/cjs-bootstrap.cjs": "server/lib/cjs-bootstrap.cjs",
     "server/project/blueprint/boot.cjs": "server/boot.cjs",
     "server/lib/start.sh": "start.sh",
@@ -54,6 +56,7 @@
     "server/templates/_iwara-style/public/favicon.png": "server/public/favicon.png",
     "server/templates/_iwara-style/server/lib/auto-update.js": "server/lib/auto-update.js",
     "server/templates/_iwara-style/public/play-app.js": "server/public/play-app.js",
+    "server/templates/_iwara-style/public/play-enhance.js": "server/public/play-enhance.js",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
     "server/templates/_iwara-style/public/vendor/": "server/public/vendor/"
   },

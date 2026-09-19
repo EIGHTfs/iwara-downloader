@@ -87,6 +87,8 @@ function initNoId() {
 }
 
 // ═══ 初始化播放器（artplayer 实例）═══
+// 控制条自动隐藏从默认 3 秒延长到 8 秒（太短容易误以为没有进度条）
+if (typeof Artplayer !== "undefined") Artplayer.CONTROL_HIDE_TIME = 8000;
 function artOptions(info, poster) {
   return {
     container: "#player",
@@ -111,6 +113,8 @@ function artOptions(info, poster) {
     miniProgressBar: true,
     playsInline: true,
     mutex: true,
+    fastForward: true,
+    gesture: true,
     moreVideoAttr: { playsInline: true }
   };
 }
@@ -127,6 +131,9 @@ function initPlayer(info, poster) {
   try {
     if (art.video) { art.video.removeAttribute("crossorigin"); art.video.crossOrigin = null; }
   } catch (_) {}
+  // ═══ 播放器交互增强（B 站式）：倍速按钮 + 桌面长按 3x 快进，实现见 play-enhance.js ═══
+  // 失败不影响播放，增强是锦上添花
+  try { if (typeof enhancePlayer === "function") enhancePlayer(art); } catch (_) {}
   art.on("error", function (err) {
     $("#err").textContent = (err && err.message) || "播放失败";
   });
