@@ -4,7 +4,9 @@
 const fs = require("fs");
 const path = require("path");
 
-const SERVER_DIR = process.env.DATA_DIR || path.join(__dirname, "..");
+// DATA_DIR 通用；GBMD_DATA_DIR 为 gbmd 项目并入的专名（其测试用该变量指定数据目录），
+// 模板统一兼容两者，项目不再保留第二份实现。
+const SERVER_DIR = process.env.DATA_DIR || process.env.GBMD_DATA_DIR || path.join(__dirname, "..");
 const JSON_DIR = path.join(SERVER_DIR, "..", "json");
 
 function ensureJsonDir() {
