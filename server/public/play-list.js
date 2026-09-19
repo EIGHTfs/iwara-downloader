@@ -5,8 +5,10 @@
 // 加载顺序：play-list.js 先于 play-app.js 加载；函数体运行时才引用上述全局，无顺序问题。
 "use strict";
 
-// 播放列表工具：排序方式（time=时间新→旧 / name=名称 A→Z）+ 自动连播开关 + 分组折叠状态
+// 播放列表工具：排序维度（time=时间 / name=名称，互斥）+ 排序方向（desc=倒序 / asc=正序）
+//   + 自动连播开关 + 分组折叠状态
 var sortMode = "time";
+var sortDir = "desc";
 var autoNext = true;
 var collapsedRels = {}; // rel -> true 表示该分组折叠
 
@@ -18,27 +20,29 @@ function catalogVideos(j) {
     return { id: vid, title: e.title || vid, name: e.name || e.username || "", duration: e.duration || 0, fileId: e.fileId || "", createdAt: e.createdAt || "", rel: e.rel || "" };
   });
 }
-// 当前排序下的完整列表（排序切换/连播取下一个都用它）
+// 当前排序维度+方向下的完整列表（排序切换/连播取下一个都用它）
 function sortedVideos() {
   var list = allVideos.slice();
-  if (sortMode === "name") {
-    list.sort(function (a, b) { return String(a.title || "").localeCompare(String(b.title || ""), "zh"); });
-  } else {
-    list.sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
-  }
+  var cmp = (sortMode === "name")
+    ? function (a, b) { return String(a.title || "").localeCompare(String(b.title || ""), "zh"); }
+    : function (a, b) { return String(a.createdAt || "").localeCompare(String(b.createdAt || "")); };
+  list.sort(function (a, b) { return sortDir === "asc" ? cmp(a, b) : cmp(b, a); });
   return list;
 }
-// 排序/连播开关状态持久化
+// 排序维度/方向/连播开关状态持久化
 function loadPlayPrefs() {
   try {
     var s = localStorage.getItem("iwara-play-sort");
     if (s === "name" || s === "time") sortMode = s;
+    var d = localStorage.getItem("iwara-play-sortdir");
+    if (d === "asc" || d === "desc") sortDir = d;
     autoNext = localStorage.getItem("iwara-play-autonext") !== "0";
   } catch (_) {}
 }
 function savePlayPrefs() {
   try {
     localStorage.setItem("iwara-play-sort", sortMode);
+    localStorage.setItem("iwara-play-sortdir", sortDir);
     localStorage.setItem("iwara-play-autonext", autoNext ? "1" : "0");
   } catch (_) {}
 }
@@ -126,16 +130,41 @@ function renderPlaylist(clear) {
   }
 }
 
-// 播放列表工具条：排序切换 + 自动连播开关（状态持久化）
+// 播放列表工具条：排序维度互斥按钮 + 正/倒序切换 + 自动连播开关（状态持久化）
+function updateSortUI() {
+  var seg = $("#sortSeg");
+  if (seg) {
+    var btns = seg.querySelectorAll(".sort-seg-btn");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle("active", btns[i].getAttribute("data-sort") === sortMode);
+    }
+  }
+  var dirBtn = $("#sortDirBtn");
+  if (dirBtn) dirBtn.textContent = sortDir === "asc" ? "↑ 正序" : "↓ 倒序";
+}
 function initPlayTools() {
   loadPlayPrefs();
-  var sortBtn = $("#sortBtn");
-  if (sortBtn) {
-    sortBtn.textContent = sortMode === "name" ? "名称↑" : "时间↓";
-    sortBtn.onclick = function () {
-      sortMode = (sortMode === "time") ? "name" : "time";
-      sortBtn.textContent = sortMode === "name" ? "名称↑" : "时间↓";
+  var seg = $("#sortSeg");
+  if (seg) {
+    var btns = seg.querySelectorAll(".sort-seg-btn");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].onclick = function () {
+        var mode = this.getAttribute("data-sort");
+        if (mode !== sortMode) {
+          sortMode = mode;
+          savePlayPrefs();
+          updateSortUI();
+          renderPlaylist(true);
+        }
+      };
+    }
+  }
+  var dirBtn = $("#sortDirBtn");
+  if (dirBtn) {
+    dirBtn.onclick = function () {
+      sortDir = (sortDir === "desc") ? "asc" : "desc";
       savePlayPrefs();
+      updateSortUI();
       renderPlaylist(true);
     };
   }
@@ -147,4 +176,5 @@ function initPlayTools() {
       savePlayPrefs();
     };
   }
+  updateSortUI();
 }

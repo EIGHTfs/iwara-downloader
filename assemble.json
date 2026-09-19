@@ -44,6 +44,7 @@
     "server/templates/_downloader-style/public/style.css": "server/public/style.css",
     "server/project/blueprint/theme-init.js": "server/public/theme-init.js",
     "server/templates/_iwara-style/fragments/scripts.html": "server/public/fragments/scripts.html",
+    "server/templates/_iwara-style/config.schema.json": "server/config.schema.json",
     "server/templates/_iwara-style/fragments/styles/row-thumb.css": "server/public/fragments/styles/row-thumb.css",
     "server/templates/_iwara-style/fragments/tab-panel/panel-download.html": "server/public/fragments/tab-panel/panel-download.html",
     "server/templates/_iwara-style/fragments/tab-panel/panel-progress.html": "server/public/fragments/tab-panel/panel-progress.html",

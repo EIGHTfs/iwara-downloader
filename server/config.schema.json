@@ -1,0 +1,25 @@
+{
+  "port": { "type": "number", "default": 28463 },
+  "sessionHours": { "type": "number", "default": 72 },
+  "iwaraToken": { "type": "string", "default": "" },
+  "iwaraCookie": { "type": "string", "default": "" },
+  "iwaraAccessToken": { "type": "string", "default": "" },
+  "iwaraCfgIp": { "type": "string", "default": "" },
+  "aria2Dns": { "type": "string", "default": "" },
+  "downloadBackend": { "type": "string", "default": "aria2" },
+  "concurrency": { "type": "number", "default": 4 },
+  "aria2Path": { "type": "string", "default": "" },
+  "aria2Token": { "type": "string", "default": "" },
+  "downloadPath": { "type": "string", "default": "" },
+  "fileNameTemplate": { "type": "string", "default": "Iwara_-_{TITLE}_[{ID}]_[{QUALITY}]" },
+  "useAuthorSubdir": { "type": "boolean", "default": false },
+  "showLikedInSearch": { "type": "boolean", "default": true },
+  "autoLike": { "type": "boolean", "default": true },
+  "autoFollow": { "type": "boolean", "default": true },
+  "checkDownloadLink": { "type": "boolean", "default": false },
+  "playPublic": { "type": "boolean", "default": true },
+  "downloadToggles": { "type": "object", "default": { "video": true, "json": true } },
+  "pageProxySites": { "type": "array", "default": [
+    { "name": "iwara", "hostSuffix": "iwara.tv", "cookie": "iwaraCookie", "rewrite": true }
+  ] }
+}
