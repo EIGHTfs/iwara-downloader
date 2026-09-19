@@ -46,12 +46,16 @@ module.exports = function register(api) {
   });
 
   // GET /api/status —— 前端据此决定跳登录页还是进主界面
+  // 字段契约：ok / needsSetup（未设密码）/ needsAuth（密码已设置）/ authed（当前会话已登录）/ port
+  // authed 必须由服务端按 session 判定——needsAuth 只是「密码已设置」，
+  // 前端拿 needsAuth 当登录态会在设密码后恒判未登录（gallery 收藏「请先登录」事故根因）。
   routePublic("*", "/api/status", (req, res) => {
     const c = cfg.readConfig();
     return sendJson(res, {
       ok: true,
       needsSetup: !c.passwordHash,
       needsAuth: !!c.passwordHash,
+      authed: auth.isValidSession(auth.extractToken(req)),
       port: c.port || 8643
     }, 200);
   });
