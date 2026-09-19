@@ -1070,7 +1070,10 @@ function makeTaskItem(it, c, root) {
     title: it.title || "",
     author: it.author || "",
     authorId: it.authorId || "",
-    file,
+    // rel = sanitize 后的相对路径（可能含「作者/文件名」目录层，由文件名模板决定）。
+    // 它同时是 file 与 savePath 的来源：下游按 item.file 拼 aria2 目录、
+    // 算 index sidecar 名、判断是否已下载，都依赖这个字段存在。
+    file: rel,
     url: it.url || "",
     savePath,
     state: "pending",
