@@ -1,5 +1,7 @@
-// 自动更新（项目实例）：从 framework 引入工厂，只在这里传项目参数。
-// 框架实现见 ../framework/auto-update.js（createAutoUpdate），本文件不再重复框架代码。
+// 自动更新（iwara 风格项目实例）：从框架引入工厂，只在这里传项目参数。
+// 框架实现见 server/framework/update/auto-update.js（createAutoUpdate），
+// 本文件不重复框架代码，仅作为 iwara 风格的项目参数包装层。
+// 存放规则：风格模板 server/lib/ 资产，由 assemble.json 下发到项目 server/lib/auto-update.js。
 "use strict";
 
 const { createAutoUpdate } = require("../update/auto-update.js");
