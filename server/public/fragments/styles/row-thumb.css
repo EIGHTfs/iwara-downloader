@@ -1,3 +1,6 @@
+/* iwara 风格专属：不含缩略图灯箱（iwara 下载列表不需要点击放大预览图）。
+   本文件覆盖 blueprint 的同名共用版本——组装顺序为 blueprint 先、风格层后，
+   故同路径文件以本风格版为准。gbmd 侧仍用 blueprint 的灯箱版。 */
 
 /* 下载进度预览图（下载时预览图）；gif 用 .row-thumb-gif 加角标区分 */
 .row-thumb {
