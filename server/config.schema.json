@@ -6,7 +6,7 @@
   "iwaraAccessToken": { "type": "string", "default": "" },
   "iwaraCfgIp": { "type": "string", "default": "" },
   "aria2Dns": { "type": "string", "default": "" },
-  "downloadBackend": { "type": "string", "default": "aria2" },
+  "downloadBackend": { "type": "string", "default": "direct" },
   "concurrency": { "type": "number", "default": 4 },
   "aria2Path": { "type": "string", "default": "" },
   "aria2Token": { "type": "string", "default": "" },
