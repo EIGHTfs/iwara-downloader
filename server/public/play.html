@@ -108,6 +108,31 @@
 .playlist-item.active .title { color: var(--primary); }
 .playlist-item .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .sidebar-empty { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+/* 播放列表工具条：排序切换 + 自动连播开关 */
+.sidebar-tools {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.tool-btn {
+  background: none; border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer;
+}
+.tool-btn:hover { border-color: var(--primary); color: var(--primary); }
+.tool-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+.tool-toggle input { accent-color: var(--primary); cursor: pointer; }
+/* 文件夹分组：组标题可折叠 */
+.playlist-group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-top: 4px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-radius: 6px; user-select: none;
+}
+.playlist-group-header .arrow { font-size: 10px; transition: transform .12s; }
+.playlist-group-header.collapsed .arrow { transform: rotate(-90deg); }
+.playlist-group-header .gcount { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 11px; }
+.playlist-group-body { display: block; }
+.playlist-group-header.collapsed + .playlist-group-body { display: none; }
 .loading-more {
   padding: 12px; text-align: center; color: var(--muted);
   font-size: 12px; border-top: 1px solid var(--border); cursor: pointer;
@@ -213,6 +238,13 @@
     <div class="sidebar-header">
       <span>播放列表</span>
       <span class="count" id="listCount"></span>
+    </div>
+    <div class="sidebar-tools">
+      <button class="tool-btn" id="sortBtn" type="button" title="切换排序：时间（新→旧）/ 名称（A→Z）">时间↓</button>
+      <label class="tool-toggle" title="播完自动播放下一个视频">
+        <input type="checkbox" id="autoplayNext" checked>
+        <span>自动连播</span>
+      </label>
     </div>
     <div class="sidebar-list" id="playlist">
       <div class="sidebar-empty">加载中…</div>
