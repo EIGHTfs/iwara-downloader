@@ -10,6 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 
 // 指令格式（HTML 注释 / CSS 注释两种都支持，片段名可带子目录）
 //   <!-- @frag:topbar -->            HTML 框架
@@ -74,6 +75,30 @@ function replaceBrandInText(text, brand) {
   return replaced ? out : text;
 }
 
+// ---------- 本地脚本自动版本化（防浏览器缓存） ----------
+// 静态资源响应头 Cache-Control: public, max-age=3600——不带版本参数时浏览器
+// 会缓存旧脚本，前端改了不生效（实测踩坑：页面一直显示旧版）。
+// 这里在装配 HTML 时自动给每个本地 .js 引用加 ?v=<内容 md5 前 8 位>：
+// 脚本内容一变 → hash 变 → URL 变 → 浏览器自动拉新版。
+// 模板/项目不用手写 ?v=，也不会出现「改了代码、忘了升版本」。
+const SCRIPT_SRC_PATTERN = /<script\s+src=["']([^"']+?\.js)(?:\?[^"']*)?["']/g;
+function versionizeScripts(html, publicRoot, fragDir, files) {
+  if (!publicRoot || html.indexOf("<script") < 0) return html;
+  return html.replace(SCRIPT_SRC_PATTERN, (whole, src) => {
+    if (/^(?:https?:)?\/\//.test(src) || /^(?:data|blob):/.test(src)) return whole; // 外链不动
+    const p = toAbs(publicRoot, src);
+    if (!isFile(p)) return whole; // 本地文件不存在则保持原样
+    try {
+      const hash = crypto.createHash("md5").update(fs.readFileSync(p)).digest("hex").slice(0, 8);
+      // 纳入缓存检测：脚本 mtime 变化 → 缓存失效 → 重拼 → 新 hash
+      if (files && files.indexOf(src) < 0) files.push(path.relative(fragDir, p));
+      return '<script src="' + src + "?v=" + hash + '"';
+    } catch (_) {
+      return whole;
+    }
+  });
+}
+
 /** 展开单行指令：先查 @frag（片段替换），再查 @brand（品牌值替换）。
  * 品牌 key 缺失时保留原注释（不报错），由调用方决定是否提示。 */
 function expandOneLine(dir, line, depth, files, filePath, brand) {
@@ -131,12 +156,14 @@ function expandFrags(dir, filePath, depth, brand) {
   return ok ? { text: out, files: files } : { text: out, files: files, warning: "存在缺失片段" };
 }
 
-/** 框架模式构建：读框架文件 → 展开指令 */
+/** 框架模式构建：读框架文件 → 展开指令 → 本地脚本自动版本化 */
 function buildFromFramework(dir, spec, brand) {
   const fp = toAbs(dir, spec);
   if (!isFile(fp)) return { error: "框架文件缺失: " + spec };
   const out = expandFrags(dir, fp, 0, brand);
   if (out.error) return { error: out.error };
+  // 本地脚本在片段目录的父目录（public/ 根）；files 纳入 js，脚本 mtime 变化即重拼
+  out.text = versionizeScripts(out.text, path.dirname(dir), dir, out.files);
   return { text: out.text, files: out.files, warning: out.warning, mtime: maxMtime(dir, out.files) };
 }
 
