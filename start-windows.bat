@@ -64,6 +64,13 @@ echo 可用命令: start, stop, restart, status
 exit /b 1
 
 :start_server
+  rem 暂存更新应用：auto-update github 模式在 Windows 检测到新版时下载暂存并写
+  rem .auto-update-pending.json，重启时先应用（旧进程已停、文件无锁），再启动。
+  if exist ".auto-update-pending.json" (
+    echo [UPDATE] 发现暂存更新，正在应用 ...
+    %NODE_BIN% server\update\apply-staged-update.cjs
+    if errorlevel 1 echo [WARN] 暂存更新应用失败，继续用旧版本启动
+  )
   if exist "%PID_FILE%" (
     for /f "usebackq delims=" %%i in ("%PID_FILE%") do set PID=%%i
     tasklist /FI "PID eq %PID%" 2>nul | find "%PID%" >nul

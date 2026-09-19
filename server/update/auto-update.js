@@ -91,6 +91,17 @@ const { manifestPaths } = requireUp(__dirname, "marker-manifest.js", {
   dirs: _frameworkSearchDirs(),
 });
 
+// tree-copy：安全树复制 + 排除规则共享实现（auto-update 与 apply-staged-update.cjs 共用）
+const { createTreeCopier } = requireUp(__dirname, "tree-copy.js", {
+  dirs: _frameworkSearchDirs(),
+});
+
+// 平台兼容开关：win32 由 Node 运行时自动识别（Windows 文件锁 → 暂存式更新）；
+// AUTO_UPDATE_FORCE_STAGED=1 强制走暂存分支（Linux 测试/模拟用，可验暂存→apply 全链路）。
+function isWinCompat() {
+  return process.platform === "win32" || process.env.AUTO_UPDATE_FORCE_STAGED === "1";
+}
+
 /**
  * 创建 auto-update 实例（框架层统一入口）。
  * @param {object} opts
@@ -122,6 +133,7 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     "start.sh",
     "start-linux.sh",
     "start-macos.sh",
+    "start-windows.bat",
     "server/boot.cjs",
     "server/setup.sh",
     // 运行态索引/任务/会话
@@ -139,6 +151,18 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
   const GITHUB_EXCLUDE_DIR = ["@eaDir", "node_modules", "_test-download", "dist", "release", ".auto-update-tmp"];
   // 后缀规则（日志 / PID / 备份残留）
   const GITHUB_EXCLUDE_SUFFIX = [".log", ".pid", ".bak"];
+
+  // 树复制器（共享实现）：排除清单快照进闭包，动态清单（userdata-manifest）按需加载。
+  // 注意：GITHUB_EXCLUDE 在此之后不能再被重新赋值（构造时已引用原数组），
+  //   后续若需追加排除项请直接改上方数组定义。
+  const treeCopier = createTreeCopier({
+    rootDir: ROOT_DIR,
+    excludePaths: GITHUB_EXCLUDE,
+    excludeDirs: GITHUB_EXCLUDE_DIR,
+    excludeSuffix: GITHUB_EXCLUDE_SUFFIX,
+    loadExtraExcludes: () => loadUserdataExcludes(),
+    onSkip: (rel) => _log("跳过(排除): " + rel),
+  });
 
   let watcher = null;
   let debounceTimer = null;
@@ -439,6 +463,28 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
       const tar = findTar();
       execSync(`"${tar}" -xzf "${tgzPath}" -C "${extractDir}" --strip-components=1`, { timeout: 60000 });
       _log("tarball 解压完成");
+      if (isWinCompat()) {
+        // Windows 暂存式更新：运行中的服务锁定已加载文件，在线覆盖会 EPERM。
+        // 解压目录整体改名到 .auto-update-staged/<sha>，写 pending 标记，
+        // 触发 start-windows.bat restart；bat 停旧进程后由
+        // apply-staged-update.cjs 应用覆盖（此时无锁）再拉起新进程。
+        const stagedDir = path.join(ROOT_DIR, ".auto-update-staged", sha);
+        try { fs.rmSync(stagedDir, { recursive: true, force: true }); } catch (_) {}
+        fs.renameSync(extractDir, stagedDir);
+        fs.writeFileSync(path.join(ROOT_DIR, ".auto-update-pending.json"), JSON.stringify({
+          sha,
+          repo,
+          branch,
+          time: Date.now(),
+          excludePaths: GITHUB_EXCLUDE,
+          excludeDirs: GITHUB_EXCLUDE_DIR,
+          excludeSuffix: GITHUB_EXCLUDE_SUFFIX,
+        }, null, 2), "utf8");
+        _log(`暂存更新完成 ${sha.slice(0, 8)}，触发 start-windows.bat restart 应用`);
+        // 只清理 tmp 残留（tgz 包），保留 staged 目录与 pending 标记
+        try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+        return;
+      }
       // 安全复制：覆盖/新增代码，绝不触碰运行态与敏感文件，也不删除目标多余文件
       copyTreeSafe(extractDir, ROOT_DIR);
       // 恢复脚本可执行位（git 模式不需要，tarball 里 *.sh 可能是 644）
@@ -450,34 +496,36 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
 
   /** 找到系统 tar（github 模式解压用） */
   function findTar() {
+    if (isWinCompat()) {
+      // Windows：Win10 1803+ 自带 bsdtar（支持 -xzf/-C/--strip-components）；
+      //   git for windows 的 tar 兜底。stdio ignore 避免 >/dev/null 在 cmd 下失效。
+      const winCandidates = [
+        "tar",
+        "C:\\Program Files\\Git\\usr\\bin\\tar.exe",
+        "C:\\Program Files (x86)\\Git\\usr\\bin\\tar.exe",
+      ];
+      for (const c of winCandidates) {
+        try {
+          execSync(`"${c}" --version`, { timeout: 3000, stdio: "ignore" });
+          return c;
+        } catch (_) { /* 下一个 */ }
+      }
+      return "tar";
+    }
     const candidates = ["/usr/bin/tar", "/bin/tar", "/usr/local/bin/tar", "tar"];
     for (const c of candidates) {
       try {
-        execSync(`"${c}" --version >/dev/null 2>&1`, { timeout: 3000 });
+        execSync(`"${c}" --version`, { timeout: 3000, stdio: "ignore" });
         return c;
       } catch (_) { /* 下一个 */ }
     }
     return "tar";
   }
 
-  /** 安全复制：把 src 下的代码树复制到 dst（覆盖/新增），跳过运行态与敏感路径 */
+  /** 安全复制：把 src 下的代码树复制到 dst（覆盖/新增），跳过运行态与敏感路径
+   *  （委托 tree-copy.js 共享实现，与 apply-staged-update.cjs 同一套逻辑） */
   function copyTreeSafe(src, dst, relBase) {
-    // dst 可能不存在（顶层首个条目是文件时 copyFileSync 会 ENOENT），先建目录
-    try { fs.mkdirSync(dst, { recursive: true }); } catch (_) {}
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-    for (const ent of entries) {
-      // 相对路径要累积（排除规则按完整相对路径匹配，如 json/userdata-manifest.json）
-      const rel = relBase ? relBase + "/" + ent.name : ent.name;
-      if (isExcluded(rel)) { _log("跳过(排除): " + rel); continue; }
-      const s = path.join(src, ent.name);
-      const d = path.join(dst, ent.name);
-      if (ent.isDirectory()) {
-        fs.mkdirSync(d, { recursive: true });
-        copyTreeSafe(s, d, rel);
-      } else if (ent.isFile()) {
-        fs.copyFileSync(s, d);
-      }
-    }
+    return treeCopier.copyTreeSafe(src, dst, relBase);
   }
 
   // 缓存 userdata-manifest.json 的排除路径（30s 过期；读失败用空列表不影响主流程）
@@ -503,18 +551,10 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     return out;
   }
 
-  /** 判断相对路径是否命中排除清单（精确匹配或前缀匹配） */
+  /** 判断相对路径是否命中排除清单（精确匹配或前缀匹配，委托 tree-copy 共享实现） */
   /** 是否排除：任意层级目录名 / 后缀 / 精确路径或目录前缀 */
   function isExcluded(relPath) {
-    const p = relPath.replace(/\\/g, "/");
-    // 1) 任意层级目录名：路径中任一段等于该名（如 json/@eaDir/x.json 里的 @eaDir）
-    const segs = p.split("/");
-    if (GITHUB_EXCLUDE_DIR.some((d) => segs.includes(d))) return true;
-    // 2) 后缀规则：任意路径段结尾匹配
-    if (GITHUB_EXCLUDE_SUFFIX.some((s) => p.endsWith(s))) return true;
-    // 3) 精确文件路径 / 目录前缀（内置 + extraExclude + 导入导出用户数据清单）
-    const allRules = GITHUB_EXCLUDE.concat(loadUserdataExcludes());
-    return allRules.some((rule) => p === rule || p.startsWith(rule + "/"));
+    return treeCopier.isExcluded(relPath);
   }
 
   /** 恢复 *.sh 与 scripts/installer 可执行位（tarball 里可能丢失） */
@@ -590,36 +630,51 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     } catch (e) {
       _log("重启回调异常: " + (e.message || String(e)));
     }
-    // 重启走 start.sh restart（项目唯一启停入口）：
-    //   延迟 detached 触发 `./start.sh restart` → stop(杀本进程) → start(拉起新进程)。
-    //   不能本进程 exit(0) 后指望外部拉起——start.sh 无守护循环；也不能自己 spawn——
-    //   与 start.sh 的 PID 管理冲突。先触发再退出，两不冲突。
-    const startSh = path.join(ROOT_DIR, "start.sh");
+    // 重启走项目启停脚本（唯一入口）：
+    //   Linux/macOS → ./start.sh restart；Windows → start-windows.bat restart。
+    //   延迟 detached 触发 → stop(杀本进程) → start(拉起新进程)。
+    //   不能本进程 exit(0) 后指望外部拉起——脚本无守护循环；也不能自己 spawn——
+    //   与脚本的 PID 管理冲突。先触发再退出，两不冲突。
     const logFile = path.join(SERVER_DIR, "server.log");
     let launched = false;
     try {
-      if (fs.existsSync(startSh)) {
-        fs.mkdirSync(SERVER_DIR, { recursive: true });
-        const out = fs.openSync(logFile, "a");
-        // 用 sh 显式解释执行，而非 `exec start.sh`：
-        //   工作区可能挂在 noexec 的 CIFS 上，脚本没有可执行位时 exec 会
-        //   Permission denied，导致重启失败而本进程已退出 → 服务直接死掉。
-        //   `sh start.sh` 只要求可读，不要求可执行位。
-        const child = spawn("/bin/sh", ["-c", `sleep 1; /bin/sh "${startSh}" restart >> "${logFile}" 2>&1`], {
+      if (isWinCompat()) {
+        const bat = "start-windows.bat"; // 相对项目根（cwd=ROOT_DIR），避免中文/空格路径在 cmd 代码页下乱码
+        const relLog = path.join("server", "server.log"); // 同上，相对路径
+        const child = spawn("cmd.exe", ["/c", `timeout /t 1 /nobreak >nul & call "${bat}" restart >> "${relLog}" 2>&1`], {
           cwd: ROOT_DIR,
           detached: true,
-          stdio: ["ignore", out, out],
+          stdio: ["ignore", "ignore", "ignore"],
           env: process.env
         });
-        fs.closeSync(out);
         child.unref();
         launched = true;
-        _log(`已触发 ./start.sh restart（1 秒后执行，日志 ${logFile}）`);
+        _log(`已触发 start-windows.bat restart（1 秒后执行，日志 ${relLog}）`);
       } else {
-        _log("未找到 start.sh，跳过自动重启");
+        const startSh = path.join(ROOT_DIR, "start.sh");
+        if (fs.existsSync(startSh)) {
+          fs.mkdirSync(SERVER_DIR, { recursive: true });
+          const out = fs.openSync(logFile, "a");
+          // 用 sh 显式解释执行，而非 `exec start.sh`：
+          //   工作区可能挂在 noexec 的 CIFS 上，脚本没有可执行位时 exec 会
+          //   Permission denied，导致重启失败而本进程已退出 → 服务直接死掉。
+          //   `sh start.sh` 只要求可读，不要求可执行位。
+          const child = spawn("/bin/sh", ["-c", `sleep 1; /bin/sh "${startSh}" restart >> "${logFile}" 2>&1`], {
+            cwd: ROOT_DIR,
+            detached: true,
+            stdio: ["ignore", out, out],
+            env: process.env
+          });
+          fs.closeSync(out);
+          child.unref();
+          launched = true;
+          _log(`已触发 ./start.sh restart（1 秒后执行，日志 ${logFile}）`);
+        } else {
+          _log("未找到 start.sh，跳过自动重启");
+        }
       }
     } catch (e) {
-      _log("触发 start.sh 失败: " + (e.message || String(e)));
+      _log("触发重启失败: " + (e.message || String(e)));
     }
     // 退出前先排空在途 HTTP 响应：静态资源（style.css 等）带 Content-Length，
     //   若进程在传输中被 process.exit 硬终止，浏览器会收到截断的响应并解析出半套
