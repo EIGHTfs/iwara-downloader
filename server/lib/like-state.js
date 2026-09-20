@@ -62,10 +62,59 @@ function markFollowed(userId, username) {
   save();
 }
 
+/**
+ * 批量标记已赞（幂等，一次落盘）。
+ * 用于启动/登录后从官方「我的已赞」列表回填历史真实收藏状态。
+ */
+function markLikedBatch(ids) {
+  const d = load();
+  const now = Date.now();
+  let changed = false;
+  for (const raw of Array.isArray(ids) ? ids : []) {
+    const id = String(raw || "").trim();
+    if (!id) continue;
+    if (!d.liked[id]) changed = true;
+    d.liked[id] = now;
+  }
+  if (changed) save();
+  return changed;
+}
+
+/**
+ * 批量标记已关注（幂等，一次落盘）。
+ * list: [{userId, username}]，用于回填官方关注列表。
+ */
+function markFollowedBatch(list) {
+  const d = load();
+  const now = Date.now();
+  let changed = false;
+  for (const it of Array.isArray(list) ? list : []) {
+    const id = String((it && (it.userId || it.id)) || "").trim();
+    if (!id) continue;
+    const uname = String((it && (it.username || it.name)) || "");
+    if (!d.followed[id] || d.followed[id].username !== uname) changed = true;
+    d.followed[id] = { username: uname, ts: now };
+  }
+  if (changed) save();
+  return changed;
+}
+
 function isLiked(videoId) {
   const id = String(videoId || "").trim();
   if (!id) return false;
   return !!load().liked[id];
+}
+
+/** 已赞视频 id 集合（增量同步对比用） */
+function likedIdSet() {
+  return new Set(Object.keys(load().liked));
+}
+
+/** 取消已赞（DELETE /api/like 成功后同步删本地记录） */
+function markUnliked(videoId) {
+  const id = String(videoId || "").trim();
+  if (!id) return;
+  if (delete load().liked[id]) save();
 }
 
 function isFollowing(userId) {
@@ -101,8 +150,12 @@ function mergeOne(v) {
 module.exports = {
   markLiked,
   markFollowed,
+  markLikedBatch,
+  markFollowedBatch,
   isLiked,
   isFollowing,
+  likedIdSet,
+  markUnliked,
   followedUserIds,
   toPublic,
   mergeOne,
