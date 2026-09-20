@@ -60,7 +60,8 @@
     "server/templates/_iwara-style/public/play-enhance.js": "server/public/play-enhance.js",
     "server/templates/_iwara-style/public/play-list.js": "server/public/play-list.js",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
-    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/"
+    "server/templates/_iwara-style/public/vendor/": "server/public/vendor/",
+    "server/templates/_iwara-style/test/": "test/"
   },
   "init": false
 }
