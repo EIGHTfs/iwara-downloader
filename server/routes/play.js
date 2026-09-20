@@ -12,6 +12,10 @@ module.exports = function register(api) {
   // GET/HEAD /api/thumb（公开；列表/播放只读本地 thumbs/<id>.jpg，缺图入队下次有图）
   routePublic(["GET", "HEAD"], "/api/thumb", thumb(api));
 
+  // 计划④：进度条图片预览——雪碧图 / VTT（公开只读，未生成 404）
+  routePublic(["GET", "HEAD"], "/api/thumbnail-sprite", thumbnailSprite(api));
+  routePublic(["GET", "HEAD"], "/api/thumbnail-vtt", thumbnailVtt(api));
+
   // GET /api/play-info（公开，handler 内含 playPublic 检查）
   routePublic(["GET", "HEAD"], "/api/play-info", playInfo(api));
 
@@ -72,6 +76,48 @@ function thumb(api) {
   };
 }
 
+// GET/HEAD /api/thumbnail-sprite：雪碧图（计划④ 进度条预览）
+function thumbnailSprite(api) {
+  const { thumbCache } = api;
+  return (req, res, parsed) => {
+    const id = String(parsed.query.id || "").trim();
+    const img = id ? thumbCache.readSprite(id) : null;
+    if (!img || !img.buf) {
+      res.writeHead(404, { "Content-Type": "image/jpeg", "Content-Length": 0, "Cache-Control": "no-store" });
+      return res.end();
+    }
+    const headers = {
+      "Content-Type": "image/jpeg",
+      "Content-Length": img.buf.length,
+      "Cache-Control": "public, max-age=86400"
+    };
+    if (img.mtimeMs) headers["Last-Modified"] = new Date(img.mtimeMs).toUTCString();
+    res.writeHead(200, headers);
+    return res.end(req.method === "HEAD" ? undefined : img.buf);
+  };
+}
+
+// GET/HEAD /api/thumbnail-vtt：VTT 描述文件（计划④ 进度条预览）
+function thumbnailVtt(api) {
+  const { thumbCache } = api;
+  return (req, res, parsed) => {
+    const id = String(parsed.query.id || "").trim();
+    const vtt = id ? thumbCache.readSpriteVtt(id) : null;
+    if (!vtt || !vtt.buf) {
+      res.writeHead(404, { "Content-Type": "text/vtt", "Content-Length": 0, "Cache-Control": "no-store" });
+      return res.end();
+    }
+    const headers = {
+      "Content-Type": "text/vtt; charset=utf-8",
+      "Content-Length": vtt.buf.length,
+      "Cache-Control": "public, max-age=86400"
+    };
+    if (vtt.mtimeMs) headers["Last-Modified"] = new Date(vtt.mtimeMs).toUTCString();
+    res.writeHead(200, headers);
+    return res.end(req.method === "HEAD" ? undefined : vtt.buf);
+  };
+}
+
 // GET /api/play-info：播放信息（含 playPublic 检查），播放只读已有封面
 function playInfo(api) {
   const { sendJson, cfg, playHint, videoIndex, thumbCache, profileIndex, requireAuth, path } = api;
@@ -93,11 +139,20 @@ function playInfo(api) {
     const expected = hint.expected || size;
     const growing = expected > 0 && size > 0 && size < expected;
     const partial = !!(found && found.partial) || growing;
+    // 计划④：完整视频 → 后台生成雪碧图 + VTT（不阻塞响应），已生成/生成中返回 VTT URL
+    let thumbVtt = "";
+    if (found && found.file && id && !partial && (Number(e.duration) || 0) > 0) {
+      thumbVtt = "/api/thumbnail-vtt?id=" + encodeURIComponent(id);
+      if (!thumbCache.spriteExists(id)) {
+        thumbCache.generateSprite(id, found.file, Number(e.duration)).catch(function () {});
+      }
+    }
     return sendJson(res, 200, {
       ok: true,
       id,
       hasFile: !!(found && found.file) && size > 0,
       partial,
+      thumbVtt,
       name: e.name || hint.author || "",
       username: e.username || "",
       avatar: (function () {

@@ -134,6 +134,18 @@ function initPlayer(info, poster) {
   // ═══ 播放器交互增强（B 站式）：倍速按钮 + 桌面长按 3x 快进，实现见 play-enhance.js ═══
   // 失败不影响播放，增强是锦上添花
   try { if (typeof enhancePlayer === "function") enhancePlayer(art); } catch (_) {}
+  // ═══ 计划④：进度条图片预览（VTT 插件，ready 后注册——ArtPlayer 不支持初始化后改 thumbnails
+  // 配置，插件化注册天然规避）。preview 生成未完成/无缩略图时 info.thumbVtt 为空，跳过不报错。═══
+  try {
+    if (info.thumbVtt && typeof artplayerPluginVttThumbnail === "function") {
+      art.once("ready", function () {
+        try {
+          art.plugins.add(artplayerPluginVttThumbnail({ vtt: info.thumbVtt }));
+          if (window.__artDebug) console.log("[thumb] vtt plugin registered", info.thumbVtt);
+        } catch (_) {}
+      });
+    }
+  } catch (_) {}
   art.on("error", function (err) {
     $("#err").textContent = (err && err.message) || "播放失败";
   });

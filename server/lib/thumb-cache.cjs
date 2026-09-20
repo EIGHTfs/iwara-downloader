@@ -152,7 +152,154 @@ function fileIdOf(info) {
   return "";
 }
 
-function thumbIndexOf(info) {
+// ════════════════════════════════════════════════════════════════
+// 进度条图片预览：雪碧图（N 帧拼一张 <id>-thumb.jpg）+ WebVTT（<id>-thumb.vtt）
+// 配套前端 artplayer-plugin-vtt-thumbnail（server/public/vendor/，官方插件本地化）。
+// 与封面（thumbs/<id>.jpg 单帧）独立：-thumb.jpg/-thumb.vtt 是预览产物，不参与封面索引。
+// ════════════════════════════════════════════════════════════════
+
+function spritePath(id) {
+  const vid = safeId(id);
+  if (!vid) return "";
+  return path.join(THUMB_DIR, vid + "-thumb.jpg");
+}
+function spriteVttPath(id) {
+  const vid = safeId(id);
+  if (!vid) return "";
+  return path.join(THUMB_DIR, vid + "-thumb.vtt");
+}
+
+function spriteExists(id) {
+  const p = spritePath(id);
+  const v = spriteVttPath(id);
+  if (!p || !v) return false;
+  try {
+    return fs.existsSync(p) && fs.statSync(p).size > 32 && isJpegFile(p) && fs.existsSync(v) && fs.statSync(v).size > 20;
+  } catch (_) { return false; }
+}
+
+function readSprite(id) {
+  const p = spritePath(id);
+  if (!p || !spriteExists(id)) return null;
+  try {
+    const st = fs.statSync(p);
+    return { buf: fs.readFileSync(p), contentType: "image/jpeg", mtimeMs: st.mtimeMs, size: st.size, path: p };
+  } catch (_) { return null; }
+}
+
+function readSpriteVtt(id) {
+  const p = spriteVttPath(id);
+  if (!p || !spriteExists(id)) return null;
+  try {
+    const st = fs.statSync(p);
+    return { buf: fs.readFileSync(p), contentType: "text/vtt", mtimeMs: st.mtimeMs, size: st.size };
+  } catch (_) { return null; }
+}
+
+function ffprobeVideoSize(bin, videoPath) {
+  // 用 tool/ffprobe（无则退化：不探测，生成时 scale 自动保持比例）
+  const probe = path.join(PROJECT_ROOT, "tool", "ffprobe");
+  const use = (probe && fs.existsSync(probe)) ? probe : "";
+  return new Promise((resolve) => {
+    if (!use || !videoPath) return resolve({ w: 0, h: 0 });
+    const child = spawn(use, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", videoPath], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    child.stdout.on("data", (c) => { out += c; });
+    const t = setTimeout(() => { try { child.kill("SIGKILL"); } catch (_) {} }, 8000);
+    child.on("close", (code) => {
+      clearTimeout(t);
+      const m = String(out).trim().match(/^(\d+)x(\d+)$/);
+      resolve(m ? { w: Number(m[1]), h: Number(m[2]) } : { w: 0, h: 0 });
+    });
+    child.on("error", () => { clearTimeout(t); resolve({ w: 0, h: 0 }); });
+  });
+}
+
+// 计划④：抽 N 帧拼雪碧图 + 写 VTT。
+// N = clamp(round(duration/30), 4, 16)；≤5s → 1 帧；帧时间 = 时长/N × (i+0.5)，
+// 坐标 (i%col)*w, (i/col|0)*h, w, h 与实际 tile 布局严格一致（VTT 与图同参生成，不漂移）。
+function extractSprite(videoPath, outPath, durationSec) {
+  const bin = findFfmpeg();
+  if (!bin || !videoPath || !fs.existsSync(videoPath)) return Promise.resolve(false);
+  const dur = Number(durationSec) || 0;
+  if (dur <= 0) return Promise.resolve(false);
+  const N = dur <= 5 ? 1 : Math.max(4, Math.min(16, Math.round(dur / 30)));
+  const col = Math.min(4, Math.ceil(Math.sqrt(N)));
+  const row = Math.ceil(N / col);
+  const w = 160; // 每帧宽固定 160（vtt-thumbnail 示例同款；分辨率自适应入后续清单）
+  const interval = dur / N;
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  const tmp = outPath.replace(/\.jpg$/i, "") + ".tmp.jpg";
+  // 先探测原视频宽高 → 按比例算每帧高（保证 VTT 的 h 与雪碧图实际帧高一致）
+  return ffprobeVideoSize(bin, videoPath).then((size) => {
+    const h = (size && size.w > 0)
+      ? Math.max(2, Math.round((w * size.h) / size.w) & ~1) // 保持偶数（yuv420 要求）
+      : 90;
+    // 抽 N 个时间点（fps=1/interval 输出第 i 帧≈ t=(i+0.5)*interval）→ scale → tile 拼图
+    const args = [
+      "-hide_banner", "-loglevel", "error",
+      "-i", videoPath,
+      "-vf", "fps=1/" + interval + ",scale=" + w + ":-2,tile=" + col + "x" + row,
+      "-frames:v", "1",
+      "-f", "mjpeg", // 裁剪版 ffmpeg 无法从 .tmp.jpg 扩展名推断 muxer，显式指定
+      "-q:v", "4",
+      "-y", tmp
+    ];
+    return new Promise((resolve) => {
+      const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
+      let err = "";
+      child.stderr.on("data", (c) => { err += c; });
+      const t = setTimeout(() => { try { child.kill("SIGKILL"); } catch (_) {} }, 60000);
+      child.on("close", (code) => {
+        clearTimeout(t);
+        try {
+          if (code === 0 && fs.existsSync(tmp) && fs.statSync(tmp).size > 32 && isJpegFile(tmp)) {
+            fs.renameSync(tmp, outPath);
+            // 写 VTT：与上图同参生成，坐标 (i%col)*w, (i/col|0)*h
+            const vttPath = outPath.replace(/\.jpg$/i, "") + ".vtt";
+            const spriteUrl = "/api/thumbnail-sprite?id=" + encodeURIComponent(path.basename(outPath, "-thumb.jpg"));
+            const lines = ["WEBVTT", ""];
+            for (let i = 0; i < N; i++) {
+              const t0 = i * interval, t1 = (i + 1) * interval;
+              const x = (i % col) * w, y = Math.floor(i / col) * h;
+              lines.push(vttTime(t0) + " --> " + vttTime(t1));
+              lines.push(spriteUrl + "#xywh=" + x + "," + y + "," + w + "," + h);
+              lines.push("");
+            }
+            fs.writeFileSync(vttPath, lines.join("\n"), "utf8");
+            return resolve(true);
+          }
+        } catch (_) {}
+        try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
+        if (err) console.error("[thumb] sprite:", String(err).slice(0, 300));
+        resolve(false);
+      });
+      child.on("error", () => { clearTimeout(t); try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {} resolve(false); });
+    });
+  });
+}
+
+function vttTime(sec) {
+  const s = Math.max(0, Number(sec) || 0);
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm + ":" + (ss < 10 ? "0" : "") + ss.toFixed(3);
+}
+
+const spriteInflight = new Map();
+// 生成雪碧图（inflight 去重 + 已存在短路）；返回 Promise<boolean>
+function generateSprite(id, videoPath, durationSec) {
+  const vid = safeId(id);
+  if (!vid || !videoPath || !fs.existsSync(videoPath)) return Promise.resolve(false);
+  if (spriteExists(vid)) return Promise.resolve(true);
+  if (spriteInflight.has(vid)) return spriteInflight.get(vid);
+  const job = extractSprite(videoPath, spritePath(vid), durationSec)
+    .catch((e) => { console.error("[thumb] sprite gen", vid, e && e.message || e); return false; })
+    .finally(() => spriteInflight.delete(vid));
+  spriteInflight.set(vid, job);
+  return job;
+}function thumbIndexOf(info) {
   if (!info) return 0;
   const n = info.thumbnail != null ? info.thumbnail
     : (info.raw && info.raw.thumbnail);
@@ -313,7 +460,8 @@ function listCached() {
   try {
     if (!fs.existsSync(THUMB_DIR)) return [];
     return fs.readdirSync(THUMB_DIR)
-      .filter((n) => n.endsWith(".jpg") && !n.endsWith(".tmp.jpg") && !n.endsWith(".part.jpg"))
+      .filter((n) => n.endsWith(".jpg") && !n.endsWith(".tmp.jpg") && !n.endsWith(".part.jpg")
+        && !n.endsWith("-thumb.jpg")) // 计划④：雪碧图不是封面，不参与封面索引/清理
       .map((n) => n.slice(0, -4));
   } catch (_) { return []; }
 }
@@ -381,5 +529,7 @@ module.exports = {
   THUMB_DIR, safeId, thumbPath, hasThumb, readThumb, writeThumb,
   ensureThumb, ensureFromInfo, fileIdOf, thumbIndexOf, localSrc,
   extractFrame, listCached, warmupAll, warmupReady,
-  saveOfficialThumb, enqueueOfficialThumb, prefetchOfficialFromList
+  saveOfficialThumb, enqueueOfficialThumb, prefetchOfficialFromList,
+  spritePath, spriteVttPath, spriteExists, readSprite, readSpriteVtt, generateSprite,
+  extractSprite, vttTime
 };
