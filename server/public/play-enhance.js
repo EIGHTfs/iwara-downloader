@@ -25,11 +25,13 @@ function enhancePlayer(art) {
   var ctx = {
     tapArmed: false, suppressTapClick: false,
     holdTimer: null, holdOn: false, holdBase: 1, suppressClick: false,
-    drag: null, suppressCtxMenu: false, ctxClearTimer: null
+    drag: null, suppressCtxMenu: false, ctxClearTimer: null,
+    volSwipe: null
   };
   initSpeedButton(art);
   initTapToPlay(art, ctx);
   initCtxSuppress(art, ctx);
+  initVolumeSwipe(art, ctx); // 画面竖滑音量（桌面 + 移动端都启用，先于 IS_MOBILE 早退）
   if (IS_MOBILE) return; // 移动端：seek/长按走官方 gesture
   initHoldFastForward(art, ctx);
   initDragSeek(art, ctx);
@@ -188,4 +190,79 @@ function initDragSeek(art, ctx) {
     if (ctx.drag && ctx.drag.seeking) return; // 拖出画面继续拖
     ctx.drag = null;
   });
+}
+
+// 4c) 画面上下滑动 → 实时音量（B 站式手势；桌面 pointer + 移动端 touch 都启用）。
+//     方向分发：首个位移超阈值（12px）的方向锁定模式——|dx|>|dy| 是横滑（交给 initDragSeek
+//     左右拖进度），|dy|>|dx| 是竖滑（本函数调音量）。锁定后不切换，避免方向抖动。
+//     与 600ms 长按快进互斥：位移超阈值即 clearHold；与单击暂停互斥：进入手势就取消 tapArmed。
+function initVolumeSwipe(art, ctx) {
+  var player = art.template.$player;
+  // 触摸拖动不被浏览器滚动接管（移动端画面竖滑音量；桌面 pointer 无碍）
+  try { player.style.touchAction = "none"; art.template.$video.style.touchAction = "none"; } catch (_) {}
+  var THRESH = 12; // 首个位移判定阈值：超过才锁定方向（区分「点」与「滑」）
+
+  function onMove(e) {
+    var g = ctx.volSwipe;
+    if (!g) return;
+    if (!g.mode) {
+      var dx = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX) - g.startX;
+      var dy = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY) - g.startY;
+      if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return; // 未过阈值：仍是「点」
+      g.mode = Math.abs(dy) > Math.abs(dx) ? "vol" : "seek"; // 锁定方向
+      if (ctx.clearHold) ctx.clearHold(); // 进入手势：取消长按快进计时
+      ctx.tapArmed = false; // 进入手势：取消「点击即播」，防松开误触发播放
+      if (g.mode === "seek") return; // 横滑交给 initDragSeek 的 document 级拖动
+    }
+    if (g.mode !== "vol" || !art.video) return;
+    var dy2 = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY) - g.startY;
+    // 目标音量 = 按下时音量 ± 位移/半屏高（满半屏滑满）；dy 负（上滑）→ 音量 +
+    var delta = -dy2 / (player.clientHeight / 2 || 100);
+    var v = Math.min(Math.max(g.base + delta, 0), 1);
+    art.video.volume = v;
+    art.volume = v; // 官方 volume 属性同步（图标/控制条联动）
+    if (v > 0 && art.video.muted) art.video.muted = false;
+    art.notice.show = "音量 " + Math.round(v * 100) + "%";
+  }
+  function onEnd() {
+    if (ctx.volSwipe) { ctx.volSwipe = null; }
+    // notice 不需要手动清：ArtPlayer 会自动淡出
+  }
+
+  player.addEventListener("pointerdown", function (e) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var t = e.target;
+    if (t && t.closest && t.closest(".art-bottom")) return;
+    if (art.isLock) return;
+    try { if (e.target.setPointerCapture) e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    var startX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] && e.touches[0].clientX);
+    var startY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] && e.touches[0].clientY);
+    var baseVol = (art.video && art.video.volume !== undefined) ? art.video.volume : (art.volume || 0.7);
+    ctx.volSwipe = { startX, startY, base: baseVol, mode: null };
+    ctx.suppressCtxMenu = true; // 按住期间不弹 contextmenu（与 4a/4b 共用）
+  });
+  player.addEventListener("pointermove", onMove);
+  player.addEventListener("pointerup", onEnd);
+  player.addEventListener("pointercancel", onEnd);
+  player.addEventListener("pointerleave", function () {
+    // 拖出画面：竖滑音量继续（与 seek 一致，不中途打断）；非活动态才清
+    if (!ctx.volSwipe) return;
+  });
+  // 触摸端：touch 事件也接同一分发（移动端 enhancePlayer 早退不走 initDragSeek，这里独立生效）
+  try {
+    player.addEventListener("touchstart", function (e) {
+      var t = e.target;
+      if (t && t.closest && t.closest(".art-bottom")) return;
+      if (art.isLock) return;
+      var tc = e.touches[0];
+      ctx.volSwipe = { startX: tc.clientX, startY: tc.clientY, base: (art.video && art.video.volume !== undefined) ? art.video.volume : 0.7, mode: null };
+      ctx.suppressCtxMenu = true;
+    }, { passive: true });
+    player.addEventListener("touchmove", function (e) {
+      onMove(e); // touches 由 onMove 兼容读取
+      if (ctx.volSwipe && ctx.volSwipe.mode === "vol") e.preventDefault(); // 竖滑音量时阻止页面滚动
+    }, { passive: false });
+    player.addEventListener("touchend", onEnd);
+    player.addEventListener("touchcancel", onEnd);
+  } catch (_) {}
 }
