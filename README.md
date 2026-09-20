@@ -18,6 +18,7 @@
 | 🚀 双下载后端 | `direct`（Node 直连，断点续传）/ `aria2`（JSON-RPC 推送） |
 | 📦 启停脚本 | 单脚本子命令 `start.sh [start|stop|restart|status]` + 兼容薄壳 + macOS/Windows 版 |
 | ❤️ 收藏 / 关注 | 下载自动点赞/关注（`autoLike` / `autoFollow`）；搜索列表与本地播放页显示真实「已赞 / 已关注」状态（官方列表接口恒返回 liked=false，本服务用本地 `liked_state` 记录并合并展示）；播放页可手动收藏视频 / 关注作者 |
+| 👤 作者头像 | 本地 `avatar/<id>/<id>.jpg` 全链路：播放页作者区显示头像圆图；搜索 / 下载自动更新作者索引（`json/profile/`）与头像文件；官方无头像的作者保持空并正确跳过 |
 
 ---
 
@@ -187,6 +188,30 @@ PID 文件：项目根 `iwara-downloader-server.pid`（不入库）。
 
 ---
 
+## 作者头像与索引（完整流程）
+
+播放页作者区头像走**本地全链路**：`json/profile/<username>.json` 索引记录作者信息（`name` / `profile` / `avatar` 相对路径），头像文件存在项目根 `avatar/<id>/<id>.jpg`，前端 `renderAuthor` 渲染 `<img class="author-avatar">`。官方 API 一律不直接透传头像 URL，只取头像 id 拼本地路径。
+
+**1. 索引如何建立 / 更新（自动，无需手工）**
+
+- 搜索时：`search-cache.js` 写搜索缓存时调 `profileIndex.upsertFromVideo(v)`，新作者自动建索引；
+- 下载时：`downloader.js` 的 `prepareVideoInfo` 调 `profileIndex.upsertFromInfo(info)`；
+- 启动时：`downloader.js` 模块加载末尾调 `profileIndex.backfillMissing()`，为「已下载但没建索引」的作者补索引（只补 json 缺失的作者，不重查已有索引）。
+- `upsertFromUser` 的更新策略：**文件已存在且 `name` 没变就跳过**（不重查官方），除非 name 变了或文件缺失。头像字段提取官方 `user.avatar.id` → 拼 `/avatar/<id>/<id>.jpg` → 若本地文件缺失则 `saveAvatarFile` 下载（`GET /image/avatar/<id>/<id>.jpg`，写入 `avatar/<id>/<id>.jpg`，`.part` 临时文件 + rename，32B 以下或官方占位图丢弃）。写索引后同步 `patchCatalog` 更新总表 `json/profile/iwara-profile.json`。
+
+**2. 播放页如何取头像**
+
+`/api/play-info` 的 `avatar` 字段：`profileIndex.readEntry(username)` → `avatar` → `avatarExists(rel)`（文件存在且 >32B）→ 返回相对路径 `/avatar/<id>/<id>.jpg`。前端 `renderAuthor`：字段非空且匹配 `/^\/avatar\/[0-9a-f-]+\/[0-9a-f-]+\.jpg$/i` 才渲染 `<img class="author-avatar">`，图片 onerror 自动隐藏。
+
+**3. 已知边界（实测确认）**
+
+- **官方 avatar=null 的作者**（如 jk4、hannana298）：本地索引 avatar 为空是**正确行为**，不是漏下载——官方 `GET /profile/{u}` 的 `user.avatar` 就是 null。前端不渲染头像，页面作者区只显示名字。
+- **官方后上传头像不自动刷新**：因「文件已存在且 name 没变就跳过」，若某作者先以无头像建了索引、官方后来才上传头像，本地不会自动补拉。需删除 `json/profile/<username>.json` 或等 name 变化才会重查。
+- **头像文件缺失但索引有值**：`saveAvatarFile` 下载失败（网络 / 官方 404）时索引仍会写入 avatar 路径，但 `avatarExists` 校验失败 → play-info 返回空 → 前端不渲染，不影响其它功能。
+- 前端脚本语义验证：`test/test-author-avatar.cjs` 以 jsdom `<script>` 内联方式（真实浏览器 script 语义，非 `win.eval`）加载真实 `play.html` body + `play-list.js` / `play-enhance.js` / `play-app.js` 三件套，断言 `#author` 渲染 `<img class="author-avatar">` 且无 JS 报错；新旧项目 `renderAuthor` 同数据渲染对比。
+
+---
+
 ## 下载后端
 
 ### direct（默认）
@@ -216,6 +241,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.12（未升版） | **头像全链路实测确认 + README 补「作者头像与索引」完整流程**：真实部署环境实测三个视频的 play-info → avatar 字段/格式 → 头像文件 HTTP 200 → 前端 jsdom 真实 script 语义渲染 `<img class="author-avatar">`，11/11 全过，确认前端无回归。实测确认：官方 `GET /profile/{u}` 的 `user.avatar` 为 null 的作者（jk4、hannana298 等）本地索引为空是**正确行为**，非漏下载；搜索/下载/启动三处自动更新作者索引（`upsertFromVideo` / `upsertFromInfo` / `backfillMissing`）；已索引作者「文件在且 name 没变」跳过重查 → 官方后上传头像不自动刷新（边界记录在 README 头像章节）。`test/test-author-avatar.cjs` 升级为前端级：jsdom `<script>` 内联加载真实 play.html body + 三件套（`initPlayTools` 全局可见），替代原 `win.eval` 方式 |
 | 1.7.11（未升版） | **真实环境实测修复三处 + 收藏/关注限频**：①**搜索列表仍不显示已收藏**——上一版只在「本服务操作后」记本地状态，历史真实收藏（官方 `/videos?liked=1` 实测 240 条）从未回填。现在：**保存凭证（cookie/token）验证登录成功后，后台全量拉一次「我的已赞」（`listLikedAll`）+「我的关注」（`syncFollowedAll`，复用 `following_cache.json` 增量缓存）写入本地 `liked_state.json`，之后全靠运行时增量（`markLiked`/`markFollowed`），不再全量分页**。②**播放页作者头像不显示 + 收藏/关注按钮不可用**——`/api/play-info`、`/api/video-state` 原注册为需鉴权路由，播放页未登录时被分发层 401 拦截（handler 内的 `playPublic` 检查根本没执行）。改为**公开路由**（`routePublic`）：`play-info` 内部仍按 `playPublic` 配置检查；`video-state` 未登录时返回本地已赞/已关注状态 + 官方详情（服务端用自己 token 拉），按钮初始态可看。③**手动收藏/关注不写本地状态**——播放页按钮 `POST /api/like`（成功 `markLiked`）、`DELETE /api/like`（`markUnliked`）、`POST /api/follow`（`markFollowed`）现在同步写 `liked_state.json`，刷新后搜索列表 badge 立即可见。④**收藏/关注限频**——播放页按钮点击是真实官方接口调用，点击后 3 秒冷却（`stateBtnCooldown`，成功/失败都冷却），防误点连续轰炸官方 API。验证：like-state 批量/取消单测、video-state 未登录返回本地状态（200）、播放页按钮 jsdom 全链路（初始态点亮 / 连点 5 次仅 1 次 POST / 401 提示未登录）、全接口回归 200。模板 `_iwara-style/public/play-app.js` 已同步 |
 | 1.7.10（未升版） | **修复搜索列表「已收藏 / 已关注」不显示 + 播放页补「收藏 / 关注」按钮**。根因：官方 `/videos` 列表接口与 `/search` 接口对所有视频恒返回 `liked:false`、`following:false`（即使真实已赞/已关注，只有详情接口 `/video/{id}` 返回真实值），搜索缓存直接把假值存进 `json/search_cache.json`，前端「❤️ 已赞 / 已关注」badge 永不出现。**服务端**：新增 `server/lib/like-state.js`（本地已赞/已关注状态持久化 `json/liked_state.json`），`autoLikeFollow` 成功、播放页手动收藏/关注都写入；搜索缓存 `normalizeVideo` 与 `/api/search-status` 返回前用本地状态合并真实值；新增 `GET /api/liked-state`（一次拉取本地集合）、`POST /api/like`、`DELETE /api/like`、`POST /api/follow`、`GET /api/video-state`（播放页按钮初始态，官方详情 + 本地兜底）、`iwara-api.getVideoState` 轻量状态查询。**前端**：搜索流程与下载轮询定期刷新本地状态，liked 变化即重绘对应搜索列表（`server/public/app.js` 的 `resultItemHtml` 以 `likedMeta.liked` / `likedMeta.followed` 兜底 badge）；播放页 `.player-author` 新增「❤️ 收藏 / + 关注」按钮（`play.html` + `play-app.js`，点击即时翻转按钮态）。验证：like-state 单测（写/合并）、搜索 badge 四态渲染（已赞/已关注显示、未赞/未关注不显示）、播放页按钮全链路（video-state 拉取 → POST like/follow → 按钮翻转）jsdom 实测通过；全接口回归 200。对应模板 `_iwara-style/public/play.html`、`play-app.js` 已同步 |
 | 1.7.9（未升版） | **播放页测试脚本纳入组装下发（模板 `_iwara-style`）**：`assemble.json` 新增 `server/templates/_iwara-style/test/ → test/` 整目录条目，模板侧测试脚本随组装同步进项目——`test/play-test.cjs`（播放页行为验证：驱动 headless 浏览器模拟倍速循环 / 长按快进 / 拖动进度条 seek / 排序与折叠 / 自动连播等交互，逐条断言 DOM 状态，无需看图即可判断画面是否真变了）、`test/play-record.cjs`（交互录屏：关键状态保帧 + 截图导出，供 ffmpeg 合成动图）。两个脚本参数全参数化（浏览器可执行文件、被测服务地址、视频 id、会话 cookie、输出目录均经环境变量传入），输出目录带删除守卫 |
@@ -278,10 +304,14 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 | 文件 | 说明 |
 |---|---|
 | `server/config.json` | 凭证、路径、密码 |
-| `server/download_task.json` | 任务进度 |
-| `server/cdn_hosts_state.json` | CDN 成功/失败子域（运行中自动写） |
-| `server/search_cache.json` / `search_task.json` | 搜索记录与按时间搜索任务 |
-| `server/server.log` / `app.pid` | 日志与 PID |
+| `json/download_task.json` | 任务进度 |
+| `json/cdn_hosts_state.json` | CDN 成功/失败子域（运行中自动写） |
+| `json/search_cache.json` / `search_task.json` | 搜索记录与按时间搜索任务 |
+| `json/following_cache.json` | 关注列表增量缓存（`syncFollowedAll` 用） |
+| `json/liked_state.json` | 本地已赞 / 已关注状态（搜索 badge 与播放页按钮兜底） |
+| `json/profile/` | 作者信息索引（含总表 `iwara-profile.json`） |
+| `avatar/<id>/<id>.jpg` | 作者头像文件（搜索/下载自动更新） |
+| `server/server.log` | 日志 |
 
 备份时按清单复制即可；不要把这些文件提交到 git。
 
