@@ -341,6 +341,71 @@ A: 由 dsh-git-push 插件托管，无需在项目里放 token 文件。
 
 ---
 
+## 踩坑记录（原 TROUBLESHOOTING.md，已并入）
+
+> 开发/部署过程中踩过的坑与最终有效方案。以下任一环节出问题时先看本节。
+
+### 1. User-Agent 规律（最容易反复踩的坑！）
+
+**必须用「精简 UA」，绝不能用「完整 Chrome UA」。**
+
+| 请求体 | UA | 结果 |
+|---|---|---|
+| Node https | 完整 UA（含 `AppleWebKit/537.36 (KHTML, like Gecko)`） | ❌ 403（CF 挑战） |
+| Node https | 精简 UA `Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0 Safari/537.36` | ✅ 200/401 通过 |
+| curl / aria2 无 UA | `aria2/1.37.0` 等 | ❌ 403 |
+| aria2 带精简浏览器 UA | 同精简 UA | ✅ 通过 |
+
+精简 UA 标准值（`DEFAULT_UA`，`server/lib/iwara-api.js`）：
+
+```
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0.0.0 Safari/537.36
+```
+
+不要加回 `AppleWebKit/537.36`，也不加 `X11; Linux x86_64` 等扩展——越精简越稳。适用位置：iwara-api.js 的 API 请求、downloader.js 的 direct 下载、**aria2 推送必须带 UA**（默认 UA 被 CF 403）。
+
+### 2. Cloudflare 挑战绕过：IP 直连 + SNI + Host
+
+iwara.tv 全套在 Cloudflare 后面且 DNS 被污染：
+1. 不通过系统 DNS 解析，直连 Cloudflare 边缘 IP（`config.json` 的 `iwaraCfgIp`，默认 `104.26.12.12`）
+2. TLS 用 `servername: <真实域名>` 保留 SNI
+3. HTTP 头带 `Host: <真实域名>` 让虚拟主机识别
+4. UA 用精简版（见上）
+
+```js
+https.request({
+  host: api.getCfIp(),        // 读配置 iwaraCfgIp，代码不写死
+  servername: "api.iwara.tv", // TLS SNI 保持域名
+  headers: { Host: "api.iwara.tv", "User-Agent": DEFAULT_UA, ... }
+})
+```
+
+**Node 版本比 Cookie 更关键**：Node 24（项目自带 `tool/node`）✅ 200/401；群晖 Node.js_v22 套件、curl 7.86 ❌ 403 `cf-mitigated: challenge`。Aria2 能下视频 ≠ API 能登录（aria2 打 CDN 文件站，登录走 api.iwara.tv）。
+
+### 3. DNS 污染
+
+系统 DNS（阿里 223.5.5.5/223.6.6.6）把 iwara CDN 子域解析到 Facebook/Twitter IP 段；8.8.8.8/1.1.1.1 结果也各不相同且不可靠。**不要试图修复 DNS，一律 IP 直连 104.26.12.12**。若必须走 DNS（如 aria2 独立进程）：群晖 DNS Server 套件建主区域 `iwara.tv` 加通配 A 记录 `* → 104.26.12.12`；aria2 用运行机 DNS，须让群晖 DNS 指向 127.0.0.1。
+
+### 4. 下载链接会过期（必须每次重新获取）
+
+downloadUrl 带 `expires` 参数，**几分钟内过期**；每次下载必须重新调用 `getVideoInfo(id)` 获取 fresh 链接（`runDownloadLoop` 里 direct/aria2 两分支都已先获取再下载），旧链接 → 403/404。
+
+### 5. CDN 子域名差异（动态列表）
+
+同一 IP 下不同 CDN 子域结果不同：`api`/`www`/`firefly`/`aiko`/`filesq`/`pela`/`phoebe`/`topaz` ✅，`naja` 等部分 403。downloadUrl 子域随机轮换 → **动态子域列表**（`server/cdn_hosts_state.json`）：GOOD 成功列表优先、BAD 失败列表自动跳过、失败自动换子域重试。注意子域替换只对未过期链接有效。
+
+### 6. aria2 后端要点
+
+- RPC 兼容 DSM 代理：`https://<NAS>:5001/webman/3rdparty/Aria2/aria2rpc_proxy.cgi`
+- token 用 `params: ["token:xxx", ...]` 前缀方式；必须带精简浏览器 UA；DSM 自签名 → `rejectUnauthorized: false`
+- 下载路径用 aria2 的 `dir` 选项传 NAS 路径；aria2 独立进程，提交后无法追踪进度，只标记 `submitted`
+
+### 7. Node 24 的坑（程序化 DNS 全部失败，别再用）
+
+自定义 `lookup` 回调 → `Invalid IP address: undefined`；`dns.resolve4Sync` → not a function；`dns.setServers` 后 resolve 仍失败。**结论：不需要任何 DNS 编程，全部 `host: 104.26.12.12` IP 直连。**
+
+---
+
 
 ---
 
