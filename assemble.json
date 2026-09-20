@@ -64,7 +64,8 @@
     "server/templates/_iwara-style/public/play-list.js": "server/public/play-list.js",
     "server/templates/_iwara-style/public/play.html": "server/public/play.html",
     "server/templates/_iwara-style/public/vendor/": "server/public/vendor/",
-    "server/templates/_iwara-style/test/": "test/"
+    "server/templates/_iwara-style/test/": "test/",
+    "server/framework/tool/tool-detect.js": "server/tool/tool-detect.js"
   },
   "init": false
 }
