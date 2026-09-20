@@ -37,7 +37,11 @@ module.exports = function register(api) {
     return sendJson(res, 200, { ok: true, task: t });
   });
   route("POST", "/api/search/stop", (req, res) => sendJson(res, 200, search.stopSearch()));
-  route("GET", "/api/search/cache", (req, res) => sendJson(res, 200, { ok: true, cache: search.getCache() }));
+  route("GET", "/api/search/cache", (req, res) => {
+    const cache = search.getCache();
+    if (cache && Array.isArray(cache.results)) cache.results = search.mergeLikedState(cache.results);
+    return sendJson(res, 200, { ok: true, cache });
+  });
   route("POST", "/api/search/clear", (req, res) => sendJson(res, 200, search.clearCache()));
 
   route("POST", "/api/search/import", async (req, res) => {
