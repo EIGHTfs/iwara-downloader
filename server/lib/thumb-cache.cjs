@@ -10,6 +10,7 @@ const { spawn } = require("child_process");
 const crypto = require("crypto");
 const api = require("./iwara-api");
 const jsonDir = require("../store/json-dir.js");
+const { detectTool } = require("../tool/tool-detect.js");
 
 // 数据目录统一由框架层 json-dir 提供（env DATA_DIR 重定向），本文件不再自行读环境变量
 const DATA_DIR = jsonDir.SERVER_DIR;
@@ -80,24 +81,22 @@ function writeThumb(id, buf, origin) {
   return p;
 }
 
+// ffmpeg 选用：环境变量 > 项目工具目录（tool/ 与 tools/ 都扫，含 ffmpeg-lib 随行库）> 系统路径。
+// 统一走 tool/tool-detect.js：存在 + 可执行(X_OK) + 版本实测，失败自动降级；
+// 返回 { bin, lib, source }；探测不到返回 null（调用方自行兜底裸名走 PATH）。
+// 【原因】曾踩坑：auto-update 组装把 tool/ffmpeg wrapper 变成 644（丢 x 位）→ 旧 findFfmpeg
+// 只看 existsSync 不查可执行 → spawn EACCES 静默失败（进度条预览不生成）。统一探测每级实测即修复。
 function findFfmpeg() {
-  // 【原代码】只找系统 /usr/bin/ffmpeg。【改为】工具在项目 tool/ 目录保存一份（如 ffmpeg）
-  // 【思路】优先项目 tool/ffmpeg 包装脚本（自带 ffmpeg-lib），换机系统没有 mediasrv 也能抽帧
-  const cands = [
-    process.env.FFMPEG || "",
-    path.join(PROJECT_ROOT, "tool", "ffmpeg"),
-    path.join(DATA_DIR, "..", "tool", "ffmpeg"),
-    "/usr/bin/ffmpeg",
-    "/usr/local/bin/ffmpeg",
-    "/opt/bin/ffmpeg",
-    "ffmpeg"
-  ];
-  for (const p of cands) {
-    if (!p) continue;
-    if (p === "ffmpeg") return p;
-    try { if (fs.existsSync(p)) return p; } catch (_) {}
-  }
-  return "";
+  const t = detectTool("ffmpeg", { appRoot: PROJECT_ROOT, toolDirs: [path.join(PROJECT_ROOT, "tool")] });
+  return t ? t.bin : "ffmpeg";
+}
+function findFfmpegLib() {
+  const t = detectTool("ffmpeg", { appRoot: PROJECT_ROOT, toolDirs: [path.join(PROJECT_ROOT, "tool")] });
+  return t ? t.lib : "";
+}
+function findFfprobe() {
+  const t = detectTool("ffprobe", { appRoot: PROJECT_ROOT, toolDirs: [path.join(PROJECT_ROOT, "tool")] });
+  return t ? t.bin : "ffprobe";
 }
 
 function extractFrame(videoPath, outPath) {
@@ -196,13 +195,12 @@ function readSpriteVtt(id) {
   } catch (_) { return null; }
 }
 
-function ffprobeVideoSize(bin, videoPath) {
-  // 用 tool/ffprobe（无则退化：不探测，生成时 scale 自动保持比例）
-  const probe = path.join(PROJECT_ROOT, "tool", "ffprobe");
-  const use = (probe && fs.existsSync(probe)) ? probe : "";
+function ffprobeVideoSize(videoPath) {
+  // 统一探测（tool/tool-detect.js：X_OK + 版本实测，自动降级）；探测不到 → 不探测（scale 自动保持比例）
+  const probe = findFfprobe();
   return new Promise((resolve) => {
-    if (!use || !videoPath) return resolve({ w: 0, h: 0 });
-    const child = spawn(use, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", videoPath], { stdio: ["ignore", "pipe", "ignore"] });
+    if (!probe || probe === "ffprobe" || !videoPath) return resolve({ w: 0, h: 0 });
+    const child = spawn(probe, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", videoPath], { stdio: ["ignore", "pipe", "ignore"] });
     let out = "";
     child.stdout.on("data", (c) => { out += c; });
     const t = setTimeout(() => { try { child.kill("SIGKILL"); } catch (_) {} }, 8000);
@@ -218,8 +216,12 @@ function ffprobeVideoSize(bin, videoPath) {
 // 计划④：抽 N 帧拼雪碧图 + 写 VTT。
 // N = clamp(round(duration/30), 4, 16)；≤5s → 1 帧；帧时间 = 时长/N × (i+0.5)，
 // 坐标 (i%col)*w, (i/col|0)*h, w, h 与实际 tile 布局严格一致（VTT 与图同参生成，不漂移）。
+// 【生成方式】分两步：① N 次 `-ss <t> -i video -frames:v 1` 抽帧（输入 seek，只解目标点附近，
+//   不整片解码——之前 fps=1/interval 滤镜对 643s 视频要全片解码 60s+ 超时）② 二次 ffmpeg 用
+//   concat + tile 拼网格。VTT 时间/坐标按第①步同参计算。
 function extractSprite(videoPath, outPath, durationSec) {
   const bin = findFfmpeg();
+  const lib = findFfmpegLib();
   if (!bin || !videoPath || !fs.existsSync(videoPath)) return Promise.resolve(false);
   const dur = Number(durationSec) || 0;
   if (dur <= 0) return Promise.resolve(false);
@@ -230,52 +232,91 @@ function extractSprite(videoPath, outPath, durationSec) {
   const interval = dur / N;
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   const tmp = outPath.replace(/\.jpg$/i, "") + ".tmp.jpg";
+  const tmpDir = path.join(path.dirname(outPath), ".sprite-" + path.basename(outPath, ".jpg"));
+  const env = lib ? Object.assign({}, process.env, { LD_LIBRARY_PATH: lib }) : undefined;
+  const run = (args, timeoutMs) => new Promise((resolve) => {
+    const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"], env });
+    let err = "";
+    child.stderr.on("data", (c) => { err += c; });
+    const t = setTimeout(() => { try { child.kill("SIGKILL"); } catch (_) {} }, timeoutMs || 30000);
+    child.on("close", (code) => {
+      clearTimeout(t);
+      resolve({ code: code === 0 ? 0 : code, err: err ? String(err).slice(0, 300) : "" });
+    });
+    child.on("error", (e) => { clearTimeout(t); resolve({ code: -1, err: (e && e.code) || String(e) }); });
+  });
+  const cleanup = () => { try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {} };
   // 先探测原视频宽高 → 按比例算每帧高（保证 VTT 的 h 与雪碧图实际帧高一致）
-  return ffprobeVideoSize(bin, videoPath).then((size) => {
+  return ffprobeVideoSize(videoPath).then(async (size) => {
     const h = (size && size.w > 0)
       ? Math.max(2, Math.round((w * size.h) / size.w) & ~1) // 保持偶数（yuv420 要求）
       : 90;
-    // 抽 N 个时间点（fps=1/interval 输出第 i 帧≈ t=(i+0.5)*interval）→ scale → tile 拼图
-    const args = [
-      "-hide_banner", "-loglevel", "error",
-      "-i", videoPath,
-      "-vf", "fps=1/" + interval + ",scale=" + w + ":-2,tile=" + col + "x" + row,
-      "-frames:v", "1",
-      "-f", "mjpeg", // 裁剪版 ffmpeg 无法从 .tmp.jpg 扩展名推断 muxer，显式指定
-      "-q:v", "4",
-      "-y", tmp
-    ];
-    return new Promise((resolve) => {
-      const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
-      let err = "";
-      child.stderr.on("data", (c) => { err += c; });
-      const t = setTimeout(() => { try { child.kill("SIGKILL"); } catch (_) {} }, 60000);
-      child.on("close", (code) => {
-        clearTimeout(t);
-        try {
-          if (code === 0 && fs.existsSync(tmp) && fs.statSync(tmp).size > 32 && isJpegFile(tmp)) {
-            fs.renameSync(tmp, outPath);
-            // 写 VTT：与上图同参生成，坐标 (i%col)*w, (i/col|0)*h
-            const vttPath = outPath.replace(/\.jpg$/i, "") + ".vtt";
-            const spriteUrl = "/api/thumbnail-sprite?id=" + encodeURIComponent(path.basename(outPath, "-thumb.jpg"));
-            const lines = ["WEBVTT", ""];
-            for (let i = 0; i < N; i++) {
-              const t0 = i * interval, t1 = (i + 1) * interval;
-              const x = (i % col) * w, y = Math.floor(i / col) * h;
-              lines.push(vttTime(t0) + " --> " + vttTime(t1));
-              lines.push(spriteUrl + "#xywh=" + x + "," + y + "," + w + "," + h);
-              lines.push("");
-            }
-            fs.writeFileSync(vttPath, lines.join("\n"), "utf8");
-            return resolve(true);
-          }
-        } catch (_) {}
-        try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
-        if (err) console.error("[thumb] sprite:", String(err).slice(0, 300));
-        resolve(false);
-      });
-      child.on("error", () => { clearTimeout(t); try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {} resolve(false); });
-    });
+    try { fs.mkdirSync(tmpDir, { recursive: true }); } catch (_) {}
+    // 第①步：N 次输入 seek 抽帧（并发 2，低负载）
+    const frames = [];
+    for (let i = 0; i < N; i++) {
+      frames.push(path.join(tmpDir, "f" + i + ".jpg"));
+    }
+    let ok = true;
+    const CONC = 2;
+    for (let i = 0; i < N; i += CONC) {
+      const batch = await Promise.all(frames.slice(i, i + CONC).map((fp, bi) => {
+        const idx = i + bi;
+        const tSec = Math.max(0.05, (idx + 0.5) * interval);
+        return run([
+          "-hide_banner", "-loglevel", "error",
+          "-ss", String(tSec),
+          "-i", videoPath,
+          "-frames:v", "1",
+          "-vf", "scale=" + w + ":" + h,
+          "-f", "mjpeg",
+          "-q:v", "4",
+          "-y", fp
+        ], 30000);
+      }));
+      for (const r of batch) {
+        if (r.code !== 0) { ok = false; if (r.err) console.error("[thumb] sprite frame:", r.err); break; }
+      }
+      if (!ok) break;
+    }
+    if (ok) {
+      // 第②步：concat 全部帧 → tile 拼网格 → 写 tmp（mjpeg 显式 muxer，裁剪版不认 .tmp.jpg 后缀推断）
+      const inputs = [];
+      for (let i = 0; i < N; i++) inputs.push("-i", frames[i]);
+      const fc = [];
+      for (let i = 0; i < N; i++) fc.push("[" + i + ":v]");
+      const tile = await run([
+        "-hide_banner", "-loglevel", "error",
+      ].concat(inputs, [
+        "-filter_complex", fc.join("") + "concat=n=" + N + ":v=1:a=0[v];[v]tile=" + col + "x" + row,
+        "-frames:v", "1",
+        "-f", "mjpeg",
+        "-q:v", "4",
+        "-y", tmp
+      ]), 30000);
+      if (tile.code !== 0) { ok = false; if (tile.err) console.error("[thumb] sprite tile:", tile.err); }
+    }
+    cleanup();
+    try {
+      if (ok && fs.existsSync(tmp) && fs.statSync(tmp).size > 32 && isJpegFile(tmp)) {
+        fs.renameSync(tmp, outPath);
+        // 写 VTT：与上图同参生成，坐标 (i%col)*w, (i/col|0)*h
+        const vttPath = outPath.replace(/\.jpg$/i, "") + ".vtt";
+        const spriteUrl = "/api/thumbnail-sprite?id=" + encodeURIComponent(path.basename(outPath, "-thumb.jpg"));
+        const lines = ["WEBVTT", ""];
+        for (let i = 0; i < N; i++) {
+          const t0 = i * interval, t1 = (i + 1) * interval;
+          const x = (i % col) * w, y = Math.floor(i / col) * h;
+          lines.push(vttTime(t0) + " --> " + vttTime(t1));
+          lines.push(spriteUrl + "#xywh=" + x + "," + y + "," + w + "," + h);
+          lines.push("");
+        }
+        fs.writeFileSync(vttPath, lines.join("\n"), "utf8");
+        return true;
+      }
+    } catch (_) {}
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (_) {}
+    return false;
   });
 }
 
