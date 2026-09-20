@@ -7,36 +7,31 @@ const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
 const os = require("os");
-const { execFile, execFileSync } = require("child_process");
+const { execFile } = require("child_process");
 
 const jsonDir = require("./json-dir");
 const markerManifest = require("./marker-manifest");
+const { detectTool } = require("../tool/tool-detect.js");
 
 const MARKER = "//userdata-manifest.json";
 const MANIFEST_NAME = "userdata-manifest.json";
-const TOOL_TIMEOUT_MS = 3000;
 const ZIP_MAX_BUFFER = 512 * 1024 * 1024;
-const toolCache = new Map();
 
 // ---------- 工具函数（不依赖实例状态） ----------
 
-function toolUsable(local) {
-  if (toolCache.has(local)) return toolCache.get(local);
-  let ok = false;
-  try { execFileSync(local, ["-v"], { stdio: "ignore", timeout: TOOL_TIMEOUT_MS }); ok = true; }
-  catch (_) { /* 工具不可用 */ }
-  toolCache.set(local, ok);
-  return ok;
-}
-
 function findTool(ctx, name) {
-  const binDir = ctx.toolDir || path.join(ctx.appRoot, "tool", "bin");
-  const exts = process.platform === "win32" ? [".exe", ""] : [""];
-  for (const ext of exts) {
-    const local = path.join(binDir, name + ext);
-    if (fs.existsSync(local) && toolUsable(local)) return local;
-  }
-  return name;
+  // 工具自探测（统一走 tool/tool-detect.js）：
+  //   ctx.toolDir 优先，其次项目 tool/bin、tool、tools（新旧目录都扫），再系统路径；
+  //   每级做「存在 + 可执行」实测，失败自动降级；探测不到返回裸名（exec 走 PATH），
+  //   与原 findTool 语义一致。
+  const t = detectTool(name, {
+    toolDirs: [
+      ctx.toolDir || path.join(ctx.appRoot, "tool", "bin"),
+      path.join(ctx.appRoot, "tool"),
+      path.join(ctx.appRoot, "tools"),
+    ],
+  });
+  return t ? t.bin : name;
 }
 
 function safeRelPath(ctx, rel) {

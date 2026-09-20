@@ -34,6 +34,7 @@ function enhancePlayer(art) {
   initVolumeSwipe(art, ctx); // 画面竖滑音量（桌面 + 移动端都启用）
   initDragSeek(art, ctx);    // 画面横滑 seek（桌面 + 移动端都启用：pointer 事件 + touch-action:none，
                              // 触摸拖动天然派发 pointermove；官方 gesture 只在进度条 $bar，区域不冲突）
+  initProgressTouch(art);    // 进度条触摸滑动 seek（官方只有桌面 mouse 拖动，触屏滑动补 pointer 通道）
   if (IS_MOBILE) return; // 移动端：长按快进走官方 fastForward（触摸长按与自绘长按避免双份冲突）
   initHoldFastForward(art, ctx);
   // 捕获阶段拦截长按结束的 click，防止内核「单击暂停」在松手时误触发
@@ -268,4 +269,42 @@ function initVolumeSwipe(art, ctx) {
     player.addEventListener("touchend", onEnd);
     player.addEventListener("touchcancel", onEnd);
   } catch (_) {}
+}
+
+// 4d) 进度条触摸滑动 seek。
+// 背景：ArtPlayer 官方进度条拖动只在桌面绑 mouse 事件（minified 源码 `p||(...)` 分支，
+//   p=移动端判定，移动端进度条不绑任何拖动事件）；且触摸屏上默认 touch-action 会把滑动
+//   当成页面滚动接管，mousemove 不连续派发——表现为「点进度条可以、滑动没反应」。
+// 这里给官方 .art-progress 补 pointer 触摸通道：touch-action:none + pointer 事件
+//   （仅 pointerType≠mouse 介入），桌面鼠标仍走官方 mousedown 拖动，互不干扰；
+//   指针捕获保证按住拖出进度条后 pointermove/up 仍派发给进度条，不丢尾段。
+function initProgressTouch(art) {
+  var bar = art.template.$progress;
+  if (!bar) return;
+  bar.style.touchAction = "none"; // 关键：触摸滑动不被页面滚动/pointercancel 吞掉
+  var dragging = false;
+  function seekByX(clientX) {
+    if (!art.video || !art.duration) return;
+    var rect = bar.getBoundingClientRect();
+    var ratio = Math.min(Math.max((clientX - rect.left) / (rect.width || 1), 0), 1);
+    art.currentTime = ratio * art.duration;
+  }
+  bar.addEventListener("pointerdown", function (e) {
+    if (e.pointerType === "mouse") return; // 鼠标交给官方 mousedown 拖动
+    dragging = true;
+    try { if (bar.setPointerCapture) bar.setPointerCapture(e.pointerId); } catch (_) {}
+    seekByX(e.clientX); // 按下即跳（与官方点击 seek 一致）
+  });
+  bar.addEventListener("pointermove", function (e) {
+    if (!dragging || e.pointerType === "mouse") return;
+    seekByX(e.clientX);
+  });
+  function endDrag(e) {
+    if (dragging && e && e.pointerType !== "mouse") dragging = false;
+  }
+  bar.addEventListener("pointerup", endDrag);
+  bar.addEventListener("pointercancel", endDrag);
+  art.on("destroy", function () {
+    bar.style.touchAction = "";
+  });
 }
