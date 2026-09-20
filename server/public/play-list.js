@@ -11,6 +11,9 @@ var sortMode = "time";
 var sortDir = "desc";
 var autoNext = true;
 var collapsedRels = {}; // rel -> true 表示该分组折叠
+var playlistGroups = {}; // rel -> {header, body}：分组头缓存，跨增量加载复用
+//   必须模块级：renderPlaylist(false) 增量加载时 container 不清空，若 groups 在函数内
+//   重新初始化为空对象，每次加载更多都会重复 makeGroup 追加同名组头（「两个根目录」根因）。
 
 // ═══ 播放列表数据 ═══
 function catalogVideos(j) {
@@ -70,7 +73,7 @@ function renderPlaylist(clear) {
   var container = $("#playlist");
   var countEl = $("#listCount");
   var loadingEl = $("#loadingMore");
-  if (clear) { container.innerHTML = ""; displayedCount = 0; }
+  if (clear) { container.innerHTML = ""; displayedCount = 0; playlistGroups = {}; }
   if (!allVideos.length) {
     container.innerHTML = '<div class="sidebar-empty">索引里还没有其它视频</div>';
     countEl.textContent = "";
@@ -86,7 +89,7 @@ function renderPlaylist(clear) {
     var cr = list[c].rel || "";
     counts[cr] = (counts[cr] || 0) + 1;
   }
-  var groups = {}; // rel -> {header, body}
+  var groups = playlistGroups; // 复用已有组头（增量加载时不重复创建）
   var lastRel = null;
   for (var i = 0; i < end; i++) {
     var v = list[i];
