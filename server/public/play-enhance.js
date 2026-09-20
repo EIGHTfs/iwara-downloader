@@ -31,10 +31,11 @@ function enhancePlayer(art) {
   initSpeedButton(art);
   initTapToPlay(art, ctx);
   initCtxSuppress(art, ctx);
-  initVolumeSwipe(art, ctx); // 画面竖滑音量（桌面 + 移动端都启用，先于 IS_MOBILE 早退）
-  if (IS_MOBILE) return; // 移动端：seek/长按走官方 gesture
+  initVolumeSwipe(art, ctx); // 画面竖滑音量（桌面 + 移动端都启用）
+  initDragSeek(art, ctx);    // 画面横滑 seek（桌面 + 移动端都启用：pointer 事件 + touch-action:none，
+                             // 触摸拖动天然派发 pointermove；官方 gesture 只在进度条 $bar，区域不冲突）
+  if (IS_MOBILE) return; // 移动端：长按快进走官方 fastForward（触摸长按与自绘长按避免双份冲突）
   initHoldFastForward(art, ctx);
-  initDragSeek(art, ctx);
   // 捕获阶段拦截长按结束的 click，防止内核「单击暂停」在松手时误触发
   art.template.$player.addEventListener("click", function (e) {
     if (ctx.suppressClick) { e.stopPropagation(); e.preventDefault(); }
@@ -248,7 +249,9 @@ function initVolumeSwipe(art, ctx) {
     // 拖出画面：竖滑音量继续（与 seek 一致，不中途打断）；非活动态才清
     if (!ctx.volSwipe) return;
   });
-  // 触摸端：touch 事件也接同一分发（移动端 enhancePlayer 早退不走 initDragSeek，这里独立生效）
+  // 触摸端：touch 事件也接同一分发（与 pointer 通道并存：pointer 先于 touch 派发，方向锁定以 pointer 为准；
+  // touch 通道是保底——个别环境 pointer 事件不完整时竖滑音量仍可用；横滑 seek 由 initDragSeek 的
+  // document 级 pointermove 接力，触摸屏 touch-action:none 保证 pointer 事件持续派发）
   try {
     player.addEventListener("touchstart", function (e) {
       var t = e.target;
