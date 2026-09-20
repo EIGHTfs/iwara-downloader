@@ -198,27 +198,6 @@ function publicSettings(c) {
   });
 }
 
-function injectAssetVersion(html, publicDir) {
-  // 「固化skill 不要求用户强刷网页，而是升级页面版本」
-  return String(html).replace(
-    /(<(?:link|script)\b[^>]*(?:href|src)=["'])([^"']+\.(?:css|js))(\?[^"']*)?(["'][^>]*>)/gi,
-    function (_, pre, url, query, post) {
-      if (/^(https?:)?\/\//i.test(url) || url.indexOf("/vendor/") >= 0) return pre + url + (query || "") + post;
-      var rel = url.replace(/^\//, "");
-      var file = path.join(publicDir, rel);
-      var v = "";
-      try {
-        if (fs.existsSync(file)) v = String(fs.statSync(file).mtimeMs | 0);
-      } catch (_) {}
-      if (!v) return pre + url + (query || "") + post;
-      var q = String(query || "");
-      if (/[?&]v=/.test(q)) q = q.replace(/([?&])v=[^&]*/, "$1v=" + v);
-      else q = (q ? q + "&" : "?") + "v=" + v;
-      return pre + url + q + post;
-    }
-  );
-}
-
 function serveStatic(req, res, pathname) {
   let filePath = path.join(PUBLIC_DIR, pathname === "/" ? "index.html" : pathname);
   if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end("Forbidden"); return; }
@@ -237,8 +216,9 @@ function serveStatic(req, res, pathname) {
     if (fragmentAssembler && fragmentAssembler.list().indexOf(rel) >= 0) {
       const r = fragmentAssembler.render(rel);
       if (r && r.ok && r.text != null) {
-        // 版本号注入只针对 HTML（匹配 <link>/<script> 标签，对 CSS 无意义）
-        const out = ext === ".html" ? injectAssetVersion(r.text, PUBLIC_DIR) : r.text;
+        // 版本号由 fragment-assembler 装配时按内容 md5 注入（js/css 都覆盖），
+        // 这里直接输出组装结果。
+        const out = r.text;
         headers["Content-Length"] = Buffer.byteLength(out);
         res.writeHead(200, headers);
         return res.end(out);

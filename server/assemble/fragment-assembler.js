@@ -75,24 +75,27 @@ function replaceBrandInText(text, brand) {
   return replaced ? out : text;
 }
 
-// ---------- 本地脚本自动版本化（防浏览器缓存） ----------
+// ---------- 本地资源自动版本化（防浏览器缓存） ----------
 // 静态资源响应头 Cache-Control: public, max-age=3600——不带版本参数时浏览器
-// 会缓存旧脚本，前端改了不生效（实测踩坑：页面一直显示旧版）。
-// 这里在装配 HTML 时自动给每个本地 .js 引用加 ?v=<内容 md5 前 8 位>：
-// 脚本内容一变 → hash 变 → URL 变 → 浏览器自动拉新版。
+// 会缓存旧脚本/样式，前端改了不生效（实测踩坑：页面一直显示旧版）。
+// 这里在装配 HTML 时自动给每个本地 .js / .css 引用加 ?v=<内容 md5 前 8 位>：
+// 文件内容一变 → hash 变 → URL 变 → 浏览器自动拉新版。
 // 模板/项目不用手写 ?v=，也不会出现「改了代码、忘了升版本」。
-const SCRIPT_SRC_PATTERN = /<script\s+src=["']([^"']+?\.js)(?:\?[^"']*)?["']/g;
+// 同时覆盖 <script src="*.js"> 与 <link href="*.css">：CSS 同样吃 max-age 缓存，
+// 只给 JS 加版本号会让样式改动也踩缓存坑（此前项目层另有一份 mtime 版本号
+// 覆盖逻辑，精度差、批量部署易失效，已删除，统一收敛到这里的 content-md5）。
+const SCRIPT_SRC_PATTERN = /<(script\s+src|link\s+[^<]*href)=["']([^"']+?\.(?:js|css))(?:\?[^"']*)?["']/g;
 function versionizeScripts(html, publicRoot, fragDir, files) {
-  if (!publicRoot || html.indexOf("<script") < 0) return html;
-  return html.replace(SCRIPT_SRC_PATTERN, (whole, src) => {
+  if (!publicRoot || html.indexOf("<") < 0) return html;
+  return html.replace(SCRIPT_SRC_PATTERN, (whole, tag, src) => {
     if (/^(?:https?:)?\/\//.test(src) || /^(?:data|blob):/.test(src)) return whole; // 外链不动
     const p = toAbs(publicRoot, src);
     if (!isFile(p)) return whole; // 本地文件不存在则保持原样
     try {
       const hash = crypto.createHash("md5").update(fs.readFileSync(p)).digest("hex").slice(0, 8);
-      // 纳入缓存检测：脚本 mtime 变化 → 缓存失效 → 重拼 → 新 hash
+      // 纳入缓存检测：资源 mtime 变化 → 缓存失效 → 重拼 → 新 hash
       if (files && files.indexOf(src) < 0) files.push(path.relative(fragDir, p));
-      return '<script src="' + src + "?v=" + hash + '"';
+      return '<' + tag + '="' + src + "?v=" + hash + '"';
     } catch (_) {
       return whole;
     }

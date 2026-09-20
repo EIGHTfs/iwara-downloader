@@ -34,6 +34,7 @@
     "server/project/blueprint/boot.cjs": "server/boot.cjs",
     "server/lib/start.sh": "start.sh",
     "server/project/blueprint/auto-update-card.js": "server/public/auto-update-card.js",
+    "server/public/partial-refresh.js": "server/public/partial-refresh.js",
     "server/templates/_downloader-style/fragments/": "server/public/fragments/",
     "server/templates/_downloader-style/public/index.html": "server/public/index.html",
     "server/templates/_downloader-style/public/login.html": "server/public/login.html",

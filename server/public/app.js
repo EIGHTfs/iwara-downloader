@@ -364,35 +364,51 @@ function rowDisplayName(it) {
 }
 
 function ensureTaskRow(listEl, it) {
-  let row = listEl.querySelector('[data-task-id="' + CSS.escape(it.id || "") + '"]');
-  if (row) return row;
-  row = document.createElement("div");
+  // 2026-09-21：行骨架创建收敛进模板通用局部刷新模块 partial-refresh.js 的 patchList；
+  // 这里保留为 createRow 回调（只建骨架；查行/复用/差集删除交给 patchList）。
+  const row = document.createElement("div");
   row.className = "item";
-  row.setAttribute("data-task-id", it.id || "");
   row.innerHTML =
     '<div class="row-thumb"></div>' +
     '<span class="icon"></span>' +
     '<span class="item-name"></span>' +
     '<span class="status-text"></span>';
-  listEl.appendChild(row);
   return row;
 }
 
 function renderTask(task) {
   // 2026-09-03 修改：任务列表按行更新，不再每 1.5s innerHTML 整表重绘。
-  // 【思路】gbmd 有指纹缓存避免无变化重绘；iwara 这边名字闪是因为 applyParsedName 改 title/file 后整表销毁重建。
-  //   按 data-task-id 复用行，只改进度/状态/稳定文件名。
+  // 2026-09-21：重绘骨架收敛进模板通用 partial-refresh.js（patchList：按 data-task-id
+  //   复用行、renderRow 只更新变化行、差集删除旧行）——与 gbmd 指纹缓存思路一致，
+  //   口径统一到模板层，iwara/gbmd/gallery 共用一份。
   const items = renderTaskHeader(task);
   if (!items || !items.length) return;
 
   const now = Date.now();
   const listEl = $("#taskList");
   if (listEl.querySelector(".empty")) listEl.innerHTML = "";
+  const pr = window.partialRefresh;
+  if (pr && typeof pr.patchList === "function") {
+    pr.patchList(listEl, items, {
+      key: "task",
+      createRow: ensureTaskRow,
+      renderRow: function (row, it) { renderTaskRow(row, it, now); },
+      removeStale: true,
+    });
+    return;
+  }
+  // 兜底：partial-refresh.js 未加载时退回原有手写增量逻辑（查/建/删）
   const seen = new Set();
   for (const it of items) {
     if (!it.id) continue;
     seen.add(it.id);
-    renderTaskRow(listEl, it, now);
+    let row = listEl.querySelector('[data-task-id="' + CSS.escape(it.id || "") + '"]');
+    if (!row) {
+      row = ensureTaskRow(listEl, it);
+      row.setAttribute("data-task-id", it.id || "");
+      listEl.appendChild(row);
+    }
+    renderTaskRow(row, it, now);
   }
   Array.from(listEl.querySelectorAll("[data-task-id]")).forEach((el) => {
     if (!seen.has(el.getAttribute("data-task-id"))) el.remove();
@@ -432,7 +448,8 @@ function renderTaskHeader(task) {
 }
 
 // 单行更新：图标/名称/进度条/缩略图/操作按钮/状态文本（复用已有行）
-function renderTaskRow(listEl, it, now) {
+// 单行更新：图标/名称/进度条/缩略图/操作按钮/状态文本（复用传入的行 row，不再自查）
+function renderTaskRow(row, it, now) {
   const bytes = it.doneBytes || 0;
   let speedStr = "";
   if (it.state === "downloading") {
@@ -452,7 +469,6 @@ function renderTaskRow(listEl, it, now) {
   const p = Math.max(0, Math.min(100, it.progress || 0));
   const displayName = rowDisplayName(it);
   const meta = [it.author, speedStr, it.error].filter(Boolean).join(" · ");
-  const row = ensureTaskRow(listEl, it);
   row.className = "item " + cls;
   const thumbUrl = "/api/thumb?id=" + encodeURIComponent(it.id);
   refreshRowThumb(row, thumbUrl);
