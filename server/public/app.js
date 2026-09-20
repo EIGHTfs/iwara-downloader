@@ -12,6 +12,27 @@ let taskPollTimer = null;
 let searchPollTimer = null;
 const lastBytes = new Map(); // id -> { t, bytes } 用于算速度
 
+// 本地点赞/关注状态（/api/liked-state）：搜索列表「❤️ 已赞 / 已关注」badge 以此为准，
+// 官方列表接口 liked/following 恒 false，靠它兜底 + 动态刷新（轮询任务时同步拉取）
+let likedMeta = { liked: new Set(), followed: new Set() };
+let likedMetaLoaded = false;
+async function refreshLikedMeta() {
+  const prev = { liked: likedMeta.liked.size, followed: likedMeta.followed.size };
+  try {
+    const r = await api("/api/liked-state");
+    if (!r || !r.ok) return { changed: false };
+    likedMeta = {
+      liked: new Set(Array.isArray(r.liked) ? r.liked : []),
+      followed: new Set((r.followed || []).map((u) => u && u.userId).filter(Boolean))
+    };
+    likedMetaLoaded = true;
+    return { changed: likedMeta.liked.size !== prev.liked || likedMeta.followed.size !== prev.followed };
+  } catch (_) { return { changed: false }; }
+}
+async function ensureLikedMeta() {
+  if (!likedMetaLoaded) await refreshLikedMeta();
+}
+
 async function api(path, method = "GET", body) {
   const opts = { method, headers: {}, credentials: "same-origin" };
   if (body !== undefined) {
@@ -238,6 +259,11 @@ function startTaskPoll() {
     try {
       const r = await api("/api/task");
       renderTask(r.task);
+      // 下载完成自动收藏后，liked_state 变化 → 搜索列表已赞 badge 即时刷新（前端本地合并兜底）
+      if (searchResults.length) {
+        const meta = await refreshLikedMeta();
+        if (meta && meta.changed) renderSearchResults();
+      }
     } catch (_) {}
     finally { inFlight = false; }
   };
@@ -759,9 +785,11 @@ function startSearchPoll() {
     if (inFlight) return;
     inFlight = true;
     try {
+      // 每次轮询顺带刷新本地点赞/关注状态：下载自动收藏/播放页收藏后，搜索列表「已赞」要跟着变
+      const meta = refreshLikedMeta();
       const r = await api("/api/search-status");
       const t = r.task;
-      if (!t) return;
+      await meta;
       searchResults = t.results || [];
       renderSearchResults();
       setStatus($("#searchStatus"), t.message || t.status || "");
@@ -878,7 +906,8 @@ function resultItemHtml(v) {
   if (v && v._kind === "user") {
     const username = v.username || v.id;
     const href = "https://www.iwara.tv/profile/" + encodeURIComponent(username);
-    const follow = v.following ? '<span class="badge liked">已关注</span>' : "";
+    // 本地已关注作者集合兜底：官方接口 following 恒 false
+    const follow = (v.following || likedMeta.followed.has(v.id)) ? '<span class="badge liked">已关注</span>' : "";
     return `<div class="result-item">
       <div class="row-thumb" style="background:var(--card2)"></div>
       <div class="name"><b><a href="${esc(href)}" target="_blank" rel="noopener">${esc(v.name || username)}</a></b> ${follow}
@@ -890,8 +919,10 @@ function resultItemHtml(v) {
   const author = videoAuthor(v);
   const when = v.createdAt ? new Date(v.createdAt).toLocaleString("zh-CN", { hour12: false }) : "";
   const tag = videoNsfw(v) ? '<span class="badge nsfw">R18</span>' : '<span class="badge normal">普通</span>';
-  const liked = (settings && settings.showLikedInSearch !== false && v.liked) ? '<span class="badge liked">❤️ 已赞</span>' : "";
   const id = videoId(v);
+  // 本地已赞集合兜底：官方列表接口 liked 恒 false，靠 like_state 显示真实已赞
+  const liked = (settings && settings.showLikedInSearch !== false && (v.liked || likedMeta.liked.has(id)))
+    ? '<span class="badge liked">❤️ 已赞</span>' : "";
   const href = "https://www.iwara.tv/video/" + encodeURIComponent(id);
   const src = thumbSrc(v);
   const img = src
@@ -1545,6 +1576,7 @@ async function init() {
     const s = await api("/api/settings");
     if (s.ok) fillSettings(s.settings);
   } catch (_) {}
+  ensureLikedMeta(); // 初始拉取本地点赞/关注状态（搜索 badge 兜底）
   if (kwType() === "users") loadFollowingUsers();
   refreshIwaraBadge();
   try {

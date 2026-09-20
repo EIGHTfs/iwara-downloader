@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const api = require("./iwara-api");
 const thumbCache = require("./thumb-cache.cjs");
+const likeState = require("./like-state");
 
 const jsonDir = require("../store/json-dir.js");
 const profileIndex = require("./profile-index");
@@ -57,7 +58,7 @@ function normalizeVideo(v) {
     dateAdded: v.dateAdded || Math.floor(createdMs(v) / 1000) || 0,
     rating: v.rating || (nsfw ? "ecchi" : "general"),
     isNsfw: nsfw,
-    liked: !!v.liked,
+    liked: !!v.liked || likeState.isLiked(id), // 官方列表接口 liked 恒 false，本地已赞（like_state）兜底
     following: !!(v.user && v.user.following),
     authorId: String((v.user && v.user.id) || v.authorId || ""),
     numLikes: Number(v.numLikes) || 0,
@@ -65,6 +66,22 @@ function normalizeVideo(v) {
     file: v.file ? { id: v.file.id, name: v.file.name, size: v.file.size } : undefined,
     thumbnailUrl: api.thumbnailUrl(v)
   };
+}
+
+/**
+ * 用本地点赞/关注状态合并结果（下载自动收藏/播放页手动收藏后，liked 变化要刷新到搜索列表）。
+ * 官方列表接口的 liked/following 恒为 false，这里以 like_state 为准补齐真实值。
+ */
+function mergeLikedState(list) {
+  if (!Array.isArray(list)) return list;
+  for (const v of list) {
+    if (!v) continue;
+    const id = String(v.id || v.modId || "").trim();
+    if (id && likeState.isLiked(id)) v.liked = true;
+    const authorId = String(v.authorId || (v.user && v.user.id) || "").trim();
+    if (authorId && likeState.isFollowing(authorId)) v.following = true;
+  }
+  return list;
 }
 
 function saveQueryTask() {
@@ -104,7 +121,14 @@ function loadQueryTaskFromDisk() {
   return queryTask;
 }
 
-function getQueryTask() { return queryTask; }
+// resultField 为 true 时返回结果字段（前端搜索列表用），此时按本地状态合并 liked/following
+function getQueryTask(resultField) {
+  if (!queryTask) return null;
+  if (!resultField) return queryTask;
+  const t = Object.assign({}, queryTask);
+  if (Array.isArray(t.results)) t.results = mergeLikedState(t.results);
+  return t;
+}
 
 function getCache() {
   try {
@@ -328,5 +352,6 @@ module.exports = {
   saveRecords,
   restorePendingQuery,
   normalizeVideo,
+  mergeLikedState,
   isNsfw
 };

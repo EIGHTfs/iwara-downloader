@@ -45,6 +45,7 @@ const renameFiles = require("./lib/rename-files");
 const deviceCheck = require("./lib/device-check");
 const thumbCache = require("./lib/thumb-cache.cjs");
 const profileIndex = require("./lib/profile-index");
+const likeState = require("./lib/like-state");
 
 const { sendJson, readBody, parseCredentialText } = require("./http/http-utils");
 
@@ -262,7 +263,7 @@ const api = {
   setSessionCookie, requireAuth, publicSettings,
   streamLocalVideo, playHint, serveStatic,
   cfg, auth, iwaraApi, downloader, search, searchDateRange, dataBackup, autoUpdate,
-  videoIndex, renameFiles, deviceCheck, thumbCache, profileIndex,
+  videoIndex, renameFiles, deviceCheck, thumbCache, profileIndex, likeState,
   fs, path, os,
   isDeniedBrowseDir, isSystemJunkName
 };
@@ -272,6 +273,7 @@ require("./routes/auth")(api);             // /api/token（iwara 专属）
 require("./routes/settings")(api);
 require("./routes/account")(api);
 require("./routes/videos")(api);
+require("./routes/like")(api);             // /api/like /api/follow /api/liked-state（赞/关注/状态）
 require("./routes/search")(api);
 require("./routes/data")(api);
 require("./routes/index")(api);

@@ -29,7 +29,13 @@ module.exports = function register(api) {
   });
 
   // 搜索状态 / 停止 / 缓存 / 清空 / 导入 / 保存 / 导出
-  route("GET", "/api/search-status", (req, res) => sendJson(res, 200, { ok: true, task: search.getQueryTask() }));
+  // 返回前按本地点赞/关注状态合并 results：官方列表接口 liked/following 恒 false，
+  // 下载自动收藏成功后会写 like_state，前端轮询到这里就能刷新出「已赞」badge
+  route("GET", "/api/search-status", (req, res) => {
+    const t = search.getQueryTask(true); // true = 合并 liked/following
+    if (t && Array.isArray(t.results)) t.results = search.mergeLikedState(t.results);
+    return sendJson(res, 200, { ok: true, task: t });
+  });
   route("POST", "/api/search/stop", (req, res) => sendJson(res, 200, search.stopSearch()));
   route("GET", "/api/search/cache", (req, res) => sendJson(res, 200, { ok: true, cache: search.getCache() }));
   route("POST", "/api/search/clear", (req, res) => sendJson(res, 200, search.clearCache()));
