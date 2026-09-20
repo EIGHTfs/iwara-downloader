@@ -761,6 +761,27 @@ async function followUser(userId) {
   return { ok: true };
 }
 
+/** DELETE /user/{userId}/followers → 200（取消关注） */
+async function unfollowUser(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid) throw new Error("缺用户 id");
+  await ensureAccessToken(false);
+  try {
+    await fetchJson(`https://${API_HOST}/user/${encodeURIComponent(uid)}/followers`, { method: "DELETE", withAuth: false, retries: 1 });
+  } catch (e) {
+    const msg = String(e && e.message || e);
+    if (/HTTP 401/.test(msg)) {
+      await ensureAccessToken(true);
+      await fetchJson(`https://${API_HOST}/user/${encodeURIComponent(uid)}/followers`, { method: "DELETE", withAuth: false, retries: 1 });
+      return { ok: true };
+    }
+    // 已取消/不存在：400/404/409/422 视为成功
+    if (/HTTP (400|404|409|422)/.test(msg)) return { ok: true, already: true };
+    throw e;
+  }
+  return { ok: true };
+}
+
 /** 下载时按设置自动点赞/关注；失败只记日志，不抛。成功后写入本地 liked_state（供搜索列表展示真实状态）。 */
 async function autoLikeFollow(info) {
   const c = cfg.readConfig();
@@ -899,4 +920,4 @@ async function getVideoState(id) {
   };
 }
 
-module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
+module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, unfollowUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };

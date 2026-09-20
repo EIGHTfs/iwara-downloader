@@ -81,4 +81,17 @@ module.exports = function register(api) {
       return sendJson(res, 200, { ok: false, error: String(e.message || e) });
     }
   });
+
+  // DELETE /api/follow（需鉴权）- 取消关注
+  route("DELETE", "/api/follow", async (req, res, parsed) => {
+    const userId = String((parsed.query && parsed.query.userId) || "").trim();
+    if (!userId) return sendJson(res, 400, { ok: false, error: "缺 userId" });
+    try {
+      await iwaraApi.unfollowUser(userId);
+      likeState.markUnfollowed(userId); // 同步删本地记录
+      return sendJson(res, 200, { ok: true, userId });
+    } catch (e) {
+      return sendJson(res, 200, { ok: false, error: String(e.message || e) });
+    }
+  });
 };
