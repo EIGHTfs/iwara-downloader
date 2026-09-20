@@ -223,6 +223,7 @@ function renderVideoMeta(j) {
   document.title = (j.title || id) + " · 本地播放";
   $("#title").textContent = j.title || id;
   renderAuthor(j);
+  refreshVideoState(id); // 拉官方/本地 liked/following 状态，点亮收藏/关注按钮
   var tags = Array.isArray(j.tags) ? j.tags : [];
   $("#tags").innerHTML = tags.map(function (t) { return "<span>" + esc(t.id || t) + "</span>"; }).join("");
   var extra = [];
@@ -242,6 +243,80 @@ function renderAuthor(j) {
     img = '<img class="author-avatar" src="' + esc(j.avatar) + '" alt="" width="28" height="28" onerror="this.style.display=\'none\'">';
   }
   $("#author").innerHTML = img + link;
+}
+
+// ── 播放页「收藏 / 关注」按钮 ──
+// 状态来源：GET /api/video-state（官方详情 liked/following + 本地 like_state 兜底），
+// 点击后分别 POST /api/like、/api/follow 并即时翻转按钮态（不用等轮询）。
+var likeBtn = null, followBtn = null;
+
+function setStateBtn(btn, on, labelOn) {
+  if (!btn) return;
+  btn.dataset.on = on ? "true" : "false";
+  btn.classList.toggle("on", on);
+  btn.textContent = on ? labelOn : (btn.dataset.off || "");
+}
+
+function refreshVideoState(vid) {
+  likeBtn = likeBtn || $("#likeBtn");
+  followBtn = followBtn || $("#followBtn");
+  fetch("/api/video-state?id=" + encodeURIComponent(vid), { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j) return;
+      setStateBtn(likeBtn, !!j.liked, "❤️ 已收藏");
+      setStateBtn(followBtn, !!j.following, "✓ 已关注");
+      // 记住 authorId：关注按钮用它；video-state 失败时无法关注也不误导
+      if (j.authorId) followBtn && (followBtn.dataset.authorId = j.authorId);
+    })
+    .catch(function () {});
+}
+
+function bindStateButtons() {
+  likeBtn = $("#likeBtn");
+  followBtn = $("#followBtn");
+  if (likeBtn) {
+    likeBtn.dataset.off = "❤️ 收藏";
+    likeBtn.addEventListener("click", function () {
+      var btn = likeBtn;
+      if (btn.disabled) return;
+      btn.disabled = true;
+      fetch("/api/like", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: id })
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) setStateBtn(btn, true, "❤️ 已收藏");
+          else if (window.showFeedback) showFeedback((j && j.error) || "收藏失败", "err");
+        })
+        .catch(function () {})
+        .finally(function () { btn.disabled = false; });
+    });
+  }
+  if (followBtn) {
+    followBtn.dataset.off = "+ 关注";
+    followBtn.addEventListener("click", function () {
+      var btn = followBtn;
+      if (btn.disabled) return;
+      var userId = btn.dataset.authorId || "";
+      if (!userId) { if (window.showFeedback) showFeedback("暂未取得作者 id，无法关注", "err"); return; }
+      btn.disabled = true;
+      fetch("/api/follow", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userId })
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j && j.ok) setStateBtn(btn, true, "✓ 已关注");
+          else if (window.showFeedback) showFeedback((j && j.error) || "关注失败", "err");
+        })
+        .catch(function () {})
+        .finally(function () { btn.disabled = false; });
+    });
+  }
 }
 
 // ═══ 切换视频：拉取 play-info 并更新播放器/页面 ═══
@@ -285,6 +360,7 @@ function loadVideo(newId) {
 function initPage() {
   initTheme();
   initPlayTools();
+  bindStateButtons(); // 播放页「收藏 / 关注」按钮
   // 前进/后退：/{id}
   window.addEventListener("popstate", function () {
     var newId = getIdFromPath() || getIdFromHash() || getIdFromQuery();

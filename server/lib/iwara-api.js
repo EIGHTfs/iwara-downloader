@@ -22,6 +22,7 @@ const zlib = require("zlib");
 
 const cfg = require("../config");
 const jsonDir = require("../store/json-dir.js");
+const likeState = require("./like-state");
 const DATA_DIR = jsonDir.SERVER_DIR;
 const JSON_DIR = jsonDir.JSON_DIR;
 
@@ -678,6 +679,27 @@ async function likeVideo(id) {
   return { ok: true };
 }
 
+/** DELETE /video/{id}/like → 200（取消点赞） */
+async function unlikeVideo(id) {
+  const vid = String(id || "").trim();
+  if (!vid) throw new Error("缺视频 id");
+  await ensureAccessToken(false);
+  try {
+    await fetchJson(`https://${API_HOST}/video/${encodeURIComponent(vid)}/like`, { method: "DELETE", withAuth: false, retries: 1 });
+  } catch (e) {
+    const msg = String(e && e.message || e);
+    if (/HTTP 401/.test(msg)) {
+      await ensureAccessToken(true);
+      await fetchJson(`https://${API_HOST}/video/${encodeURIComponent(vid)}/like`, { method: "DELETE", withAuth: false, retries: 1 });
+      return { ok: true };
+    }
+    // 已取消/不存在：400/404 视为成功
+    if (/HTTP (400|404|409|422)/.test(msg)) return { ok: true, already: true };
+    throw e;
+  }
+  return { ok: true };
+}
+
 /** POST /user/{userId}/followers → 201 */
 async function followUser(userId) {
   const uid = String(userId || "").trim();
@@ -686,7 +708,7 @@ async function followUser(userId) {
   return { ok: true };
 }
 
-/** 下载时按设置自动点赞/关注；失败只记日志，不抛。 */
+/** 下载时按设置自动点赞/关注；失败只记日志，不抛。成功后写入本地 liked_state（供搜索列表展示真实状态）。 */
 async function autoLikeFollow(info) {
   const c = cfg.readConfig();
   const out = { liked: false, followed: false, errors: [] };
@@ -695,6 +717,7 @@ async function autoLikeFollow(info) {
     try {
       await likeVideo(info.id);
       out.liked = true;
+      likeState.markLiked(info.id); // 官方列表接口 liked 恒 false，本地记录真实状态
     } catch (e) {
       out.errors.push("like: " + (e && e.message || e));
       console.error("[iwara-api] autoLike 失败:", e && e.message || e);
@@ -704,6 +727,7 @@ async function autoLikeFollow(info) {
     try {
       await followUser(info.authorId);
       out.followed = true;
+      likeState.markFollowed(info.authorId, info.author || info.alias || ""); // 同上：本地记录作者已关注
     } catch (e) {
       out.errors.push("follow: " + (e && e.message || e));
       console.error("[iwara-api] autoFollow 失败:", e && e.message || e);
@@ -800,4 +824,26 @@ async function getThumbMeta(id) {
   return { id: vid, fileId, thumbnail: n };
 }
 
-module.exports = { getXVersion, checkLogin, getVideoInfo, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, likeVideo, followUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
+/**
+ * 轻量视频状态（播放页「收藏/关注」按钮用）：只 GET /video/{id}，不拉文件源。
+ * 返回 liked/following（官方详情接口返回值）+ authorId/author 供关注按钮。
+ */
+async function getVideoState(id) {
+  const vid = String(id || "").trim();
+  if (!vid) return null;
+  const raw = await fetchJson(`https://${API_HOST}/video/${vid}`, { retries: 1 });
+  const u = raw && raw.user ? raw.user : {};
+  const authorId = String(u.id || "").trim();
+  return {
+    id: vid,
+    liked: !!raw.liked,
+    following: !!u.following,
+    authorId,
+    author: String(u.name || u.username || ""),
+    username: String(u.username || u.name || ""),
+    title: String(raw.title || ""),
+    online: true
+  };
+}
+
+module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, likeVideo, unlikeVideo, followUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
