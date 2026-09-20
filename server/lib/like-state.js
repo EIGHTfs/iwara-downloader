@@ -135,12 +135,15 @@ function followedUserIds() {
   return new Set(Object.keys(load().followed));
 }
 
-/** 已赞视频 id 集合（供前端一次拉取），{ liked:[id], followed:[{userId, username}] } */
+/** 已赞视频 id 集合（供前端一次拉取），{ liked:[id], followed:[{userId, username}], mtime } */
 function toPublic() {
   const d = load();
+  let mtime = 0;
+  try { mtime = fs.existsSync(STATE_FILE) ? fs.statSync(STATE_FILE).mtimeMs : 0; } catch (_) { mtime = 0; }
   return {
     liked: Object.keys(d.liked),
-    followed: Object.keys(d.followed).map((id) => Object.assign({ userId: id }, d.followed[id]))
+    followed: Object.keys(d.followed).map((id) => Object.assign({ userId: id }, d.followed[id])),
+    mtime
   };
 }
 

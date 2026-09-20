@@ -12,12 +12,14 @@ let taskPollTimer = null;
 let searchPollTimer = null;
 const lastBytes = new Map(); // id -> { t, bytes } 用于算速度
 
-// 本地点赞/关注状态（/api/liked-state）：搜索列表「❤️ 已赞 / 已关注」badge 以此为准，
-// 官方列表接口 liked/following 恒 false，靠它兜底 + 动态刷新（轮询任务时同步拉取）
+// 本地点赞/关注状态（/api/liked-state）：搜索列表「❤️ 已赞 / 已关注」badge 以搜索 json 的
+// liked/following 字段为唯一渲染数据源（服务端 mergeLikedState 已补真实值），
+// likedMeta 仅保留给播放页/下载勾选等其余场景兜底 + mtime 变化检测（驱动搜索行局部刷新）。
 let likedMeta = { liked: new Set(), followed: new Set() };
 let likedMetaLoaded = false;
+let lastLikedMtime = 0; // liked_state.json 的 mtime；变了 → 只局部刷 badge，不整表重建
 async function refreshLikedMeta() {
-  const prev = { liked: likedMeta.liked.size, followed: likedMeta.followed.size };
+  const prevMtime = lastLikedMtime;
   try {
     const r = await api("/api/liked-state");
     if (!r || !r.ok) return { changed: false };
@@ -26,7 +28,8 @@ async function refreshLikedMeta() {
       followed: new Set((r.followed || []).map((u) => u && u.userId).filter(Boolean))
     };
     likedMetaLoaded = true;
-    return { changed: likedMeta.liked.size !== prev.liked || likedMeta.followed.size !== prev.followed };
+    if (typeof r.mtime === "number" && r.mtime > 0) lastLikedMtime = r.mtime;
+    return { changed: lastLikedMtime !== prevMtime, mtime: lastLikedMtime };
   } catch (_) { return { changed: false }; }
 }
 async function ensureLikedMeta() {
@@ -259,10 +262,10 @@ function startTaskPoll() {
     try {
       const r = await api("/api/task");
       renderTask(r.task);
-      // 下载完成自动收藏后，liked_state 变化 → 搜索列表已赞 badge 即时刷新（前端本地合并兜底）
+      // 下载完成自动收藏后，liked_state mtime 变化 → 搜索列表已赞 badge 局部刷新（不整表重建）
       if (searchResults.length) {
         const meta = await refreshLikedMeta();
-        if (meta && meta.changed) renderSearchResults();
+        if (meta && meta.changed) updateLikedBadges();
       }
     } catch (_) {}
     finally { inFlight = false; }
@@ -785,13 +788,18 @@ function startSearchPoll() {
     if (inFlight) return;
     inFlight = true;
     try {
-      // 每次轮询顺带刷新本地点赞/关注状态：下载自动收藏/播放页收藏后，搜索列表「已赞」要跟着变
-      const meta = refreshLikedMeta();
+      // 1) 拉 liked-state 拿 mtime（含最新 liked/followed 集合供播放页等场景）
+      const metaP = refreshLikedMeta();
       const r = await api("/api/search-status");
       const t = r.task;
-      await meta;
-      searchResults = t.results || [];
-      renderSearchResults();
+      const meta = await metaP;
+      // 2) 结构变化（条数/分页加载）→ 整表渲染；仅 liked/following 状态变化（mtime 变）→ 局部刷 badge
+      const newResults = t.results || [];
+      const structChanged = newResults.length !== searchResults.length
+        || newResults.some((v, i) => videoId(v) !== videoId(searchResults[i]));
+      searchResults = newResults;
+      if (structChanged) renderSearchResults();
+      else if (meta && meta.changed) updateLikedBadges();
       setStatus($("#searchStatus"), t.message || t.status || "");
       if (t.status !== "running") {
         $("#stopSearchBtn").style.display = "none";
@@ -920,15 +928,16 @@ function resultItemHtml(v) {
   const when = v.createdAt ? new Date(v.createdAt).toLocaleString("zh-CN", { hour12: false }) : "";
   const tag = videoNsfw(v) ? '<span class="badge nsfw">R18</span>' : '<span class="badge normal">普通</span>';
   const id = videoId(v);
-  // 本地已赞集合兜底：官方列表接口 liked 恒 false，靠 like_state 显示真实已赞
-  const liked = (settings && settings.showLikedInSearch !== false && (v.liked || likedMeta.liked.has(id)))
-    ? '<span class="badge liked">❤️ 已赞</span>' : "";
+  // 已赞 badge 只读搜索 json 的 liked 字段（服务端 mergeLikedState 已补真实值）——单一数据源。
+  // 播放页点赞/取消后由轮询 mtime 变化触发 updateLikedBadges 局部更新，不整表重建。
+  const liked = (settings && settings.showLikedInSearch !== false && v.liked)
+    ? '<span class="badge liked" data-liked-badge>❤️ 已赞</span>' : "";
   const href = "https://www.iwara.tv/video/" + encodeURIComponent(id);
   const src = thumbSrc(v);
   const img = src
     ? `<img class="row-thumb" src="${esc(src)}" alt="" loading="lazy" data-base="${esc(src)}">`
     : `<div class="row-thumb" style="background:var(--card2)"></div>`;
-  return `<div class="result-item">
+  return `<div class="result-item" data-vid="${esc(id)}">
     <input type="checkbox" data-id="${esc(id)}" onclick="event.stopPropagation()">
     <a href="${esc(href)}" target="_blank" rel="noopener">${img}</a>
     <div class="name"><b><a href="${esc(href)}" target="_blank" rel="noopener">${esc(v.title || v.name || id)}</a></b> ${tag} ${liked}
@@ -978,6 +987,41 @@ function renderSearchResults() {
     onKwTypeChange();
     runUserVideos(username);
   });
+}
+
+// 局部刷新已赞 badge（liked_state.json mtime 变化时调用）：只更新变化行的「❤️ 已赞」span，
+// 不重建整表——搜索列表图片不闪、滚动位置不跳。每格 data-vid 定位，badge 用 data-liked-badge 标记。
+function updateLikedBadges() {
+  const box = $("#searchResultList");
+  if (!box || !Array.isArray(searchResults)) return;
+  if (!searchResults.length) return;
+  const show = !(settings && settings.showLikedInSearch === false);
+  const byId = new Map();
+  for (const v of searchResults) {
+    if (!v) continue;
+    const id = videoId(v);
+    if (id) byId.set(id, !!v.liked);
+  }
+  const rows = box.querySelectorAll('.result-item[data-vid]');
+  for (const row of rows) {
+    const id = row.getAttribute("data-vid");
+    if (!id) continue;
+    const want = !!(show && byId.get(id));
+    const badge = row.querySelector(".badge.liked[data-liked-badge]");
+    const has = !!badge;
+    if (want && !has) {
+      const nameEl = row.querySelector(".name");
+      if (nameEl) {
+        const span = document.createElement("span");
+        span.className = "badge liked";
+        span.setAttribute("data-liked-badge", "");
+        span.textContent = "❤️ 已赞";
+        nameEl.appendChild(span);
+      }
+    } else if (!want && has) {
+      badge.parentNode && badge.parentNode.removeChild(badge);
+    }
+  }
 }
 
 let followingUsers = [];
