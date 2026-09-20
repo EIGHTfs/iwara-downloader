@@ -5,7 +5,7 @@
 "use strict";
 
 module.exports = function register(api) {
-  const { route, sendJson, readBody, cfg, parseCredentialText, publicSettings, deviceCheck, thumbCache } = api;
+  const { route, sendJson, readBody, cfg, parseCredentialText, publicSettings, deviceCheck, thumbCache, iwaraApi } = api;
 
   // GET /api/aria2-device（需鉴权）
   route("GET", "/api/aria2-device", async (req, res, parsed) => {
@@ -60,6 +60,31 @@ module.exports = function register(api) {
     cfg.writeConfig(c);
     if (c.downloadPath && String(c.downloadPath) !== String(oldDownloadPath)) {
       thumbCache.warmupAll(c.downloadPath);
+    }
+    // 保存了凭证（cookie/token）→ 后台验证登录，成功则全量回填一次历史收藏/关注状态。
+    // 官方列表接口 liked/following 恒 false，本服务靠本地 like_state 展示；
+    // 只在这里全量拉一次，之后全靠运行时增量（markLiked/markFollowed），不频繁全量分页。
+    const credChanged = ["iwaraCookie", "iwaraToken", "iwaraAccessToken"].some(
+      (k) => body[k] !== undefined && String(body[k]).trim() !== ""
+    );
+    if (credChanged) {
+      setTimeout(function () {
+        iwaraApi.checkLogin()
+          .then(function (r) {
+            if (!r || !r.ok) return null;
+            return Promise.all([iwaraApi.listLikedAll(), iwaraApi.syncFollowedAll()]);
+          })
+          .then(function (res) {
+            if (!res) return;
+            console.log(
+              "[iwara-api] 凭证验证成功，已全量回填收藏/关注状态: liked=" +
+                (res[0] && res[0].ids.length) + " followed=" + (res[1] && res[1].count)
+            );
+          })
+          .catch(function (e) {
+            console.error("[iwara-api] 收藏/关注回填失败:", e && e.message || e);
+          });
+      }, 1500);
     }
     return sendJson(res, 200, { ok: true, settings: publicSettings(cfg.readConfig()), parsedFromText: !!parseCredentialText(typeof body.iwaraCookie === "string" ? body.iwaraCookie : "") });
   });

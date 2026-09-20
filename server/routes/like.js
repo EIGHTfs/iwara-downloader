@@ -6,16 +6,17 @@
 "use strict";
 
 module.exports = function register(api) {
-  const { route, sendJson, readBody, cfg, iwaraApi, likeState } = api;
+  const { route, routePublic, sendJson, readBody, cfg, iwaraApi, likeState } = api;
 
   // GET /api/liked-state（需鉴权）- 本地已赞/已关注 id 集合（搜索列表合并展示用）
   route("GET", "/api/liked-state", (req, res) => {
     return sendJson(res, 200, { ok: true, ...likeState.toPublic() });
   });
 
-  // GET /api/video-state（需鉴权）- 播放页「收藏/关注」按钮初始状态：
-  //   官方详情接口返回真实 liked/following，再与本地 like_state 合并
-  route("GET", "/api/video-state", async (req, res, parsed) => {
+  // GET /api/video-state（公开，handler 内可访问） - 播放页「收藏/关注」按钮初始状态：
+  //   官方详情接口返回真实 liked/following，再与本地 like_state 合并；
+  //   未登录/联网失败时回退本地状态（至少能看本地已知的收藏/关注）
+  routePublic("GET", "/api/video-state", async (req, res, parsed) => {
     const id = String((parsed.query && parsed.query.id) || "").trim();
     if (!id) return sendJson(res, 400, { ok: false, error: "缺视频 id" });
     try {
@@ -47,6 +48,7 @@ module.exports = function register(api) {
     if (!id) return sendJson(res, 400, { ok: false, error: "缺视频 id" });
     try {
       await iwaraApi.likeVideo(id);
+      likeState.markLiked(id); // 本地记录，搜索列表 badge 立即生效
       return sendJson(res, 200, { ok: true, id });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: String(e.message || e) });
@@ -59,6 +61,7 @@ module.exports = function register(api) {
     if (!id) return sendJson(res, 400, { ok: false, error: "缺视频 id" });
     try {
       await iwaraApi.unlikeVideo(id);
+      likeState.markUnliked(id); // 同步删本地记录
       return sendJson(res, 200, { ok: true, id });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: String(e.message || e) });
@@ -72,6 +75,7 @@ module.exports = function register(api) {
     if (!userId) return sendJson(res, 400, { ok: false, error: "缺 userId" });
     try {
       await iwaraApi.followUser(userId);
+      likeState.markFollowed(userId, String((body && body.username) || "")); // 本地记录
       return sendJson(res, 200, { ok: true, userId });
     } catch (e) {
       return sendJson(res, 200, { ok: false, error: String(e.message || e) });

@@ -247,6 +247,23 @@ function renderAuthor(j) {
 
 // ── 播放页「收藏 / 关注」按钮 ──
 // 状态来源：GET /api/video-state（官方详情 liked/following + 本地 like_state 兜底），
+// ═══ 播放页「收藏 / 关注」按钮 ═══
+// 点击是真实调用官方接口（POST like/follow），必须限制频率防误点轰炸：
+// 每次点击后冷却 3 秒（成功/失败都冷却），期间按钮禁用。
+var STATE_BTN_COOLDOWN_MS = 3000;
+var _stateBtnCooldowns = {}; // btn id -> timer
+
+function stateBtnCooldown(btn) {
+  if (!btn || !btn.id) return;
+  btn.disabled = true;
+  var timer = _stateBtnCooldowns[btn.id];
+  if (timer) clearTimeout(timer);
+  _stateBtnCooldowns[btn.id] = setTimeout(function () {
+    _stateBtnCooldowns[btn.id] = null;
+    btn.disabled = false;
+  }, STATE_BTN_COOLDOWN_MS);
+}
+
 // 点击后分别 POST /api/like、/api/follow 并即时翻转按钮态（不用等轮询）。
 var likeBtn = null, followBtn = null;
 
@@ -280,7 +297,7 @@ function bindStateButtons() {
     likeBtn.addEventListener("click", function () {
       var btn = likeBtn;
       if (btn.disabled) return;
-      btn.disabled = true;
+      stateBtnCooldown(btn); // 冷却期内不可再点（真实官方接口，防误点轰炸）
       fetch("/api/like", {
         method: "POST",
         credentials: "same-origin",
@@ -291,8 +308,7 @@ function bindStateButtons() {
           if (j && j.ok) setStateBtn(btn, true, "❤️ 已收藏");
           else if (window.showFeedback) showFeedback((j && j.error) || "收藏失败", "err");
         })
-        .catch(function () {})
-        .finally(function () { btn.disabled = false; });
+        .catch(function () {});
     });
   }
   if (followBtn) {
@@ -302,7 +318,7 @@ function bindStateButtons() {
       if (btn.disabled) return;
       var userId = btn.dataset.authorId || "";
       if (!userId) { if (window.showFeedback) showFeedback("暂未取得作者 id，无法关注", "err"); return; }
-      btn.disabled = true;
+      stateBtnCooldown(btn); // 冷却期内不可再点（真实官方接口，防误点轰炸）
       fetch("/api/follow", {
         method: "POST",
         credentials: "same-origin",
@@ -313,8 +329,7 @@ function bindStateButtons() {
           if (j && j.ok) setStateBtn(btn, true, "✓ 已关注");
           else if (window.showFeedback) showFeedback((j && j.error) || "关注失败", "err");
         })
-        .catch(function () {})
-        .finally(function () { btn.disabled = false; });
+        .catch(function () {});
     });
   }
 }

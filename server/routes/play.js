@@ -12,8 +12,8 @@ module.exports = function register(api) {
   // GET/HEAD /api/thumb（公开；列表/播放只读本地 thumbs/<id>.jpg，缺图入队下次有图）
   routePublic(["GET", "HEAD"], "/api/thumb", thumb(api));
 
-  // GET /api/play-info（公开含 playPublic 检查）
-  route("GET", "/api/play-info", playInfo(api));
+  // GET /api/play-info（公开，handler 内含 playPublic 检查）
+  routePublic(["GET", "HEAD"], "/api/play-info", playInfo(api));
 
   // GET/HEAD /api/play（公开含 playPublic 检查）
   routePublic(["GET", "HEAD"], "/api/play", play(api));

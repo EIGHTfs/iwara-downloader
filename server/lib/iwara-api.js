@@ -491,6 +491,59 @@ async function listFollowing(force) {
   return syncFollowing(!!force);
 }
 
+/**
+ * 全量拉「我的已赞」视频 id（官方 /videos?liked=1，按时间新→旧）。
+ * 只在「保存凭证验证登录成功」时调用一次做历史回填，之后本地增量，不频繁全量拉。
+ * 返回 { total, ids, pages }。
+ */
+async function listLikedAll() {
+  await ensureAccessToken(false);
+  const LIMIT = 96;
+  const ids = [];
+  let pages = 0;
+  let total = 0;
+  for (let page = 0; page < 60; page++) {
+    const data = await fetchJson(`https://${API_HOST}/videos?liked=1&page=${page}&limit=${LIMIT}`, { withAuth: false, retries: 1 });
+    pages++;
+    const rows = ((data && data.results) || []);
+    if (!rows.length) break;
+    total = Number(data && data.count) || total;
+    for (const v of rows) {
+      const id = String((v && v.id) || "").trim();
+      if (id && ids.indexOf(id) < 0) ids.push(id);
+    }
+    if (rows.length < LIMIT) break;
+  }
+  return { total: total || ids.length, ids, pages };
+}
+
+/**
+ * 全量拉「我的关注」并写入 like_state（官方 /user/{id}/following 分页）。
+ * 只在「保存凭证验证登录成功」时调用一次做历史回填，之后本地增量。
+ * 返回 { total, count, pages }。
+ */
+async function syncFollowedAll() {
+  const me = await currentUser();
+  const LIMIT = 96;
+  let count = 0;
+  let pages = 0;
+  const list = [];
+  for (let page = 0; page < 60; page++) {
+    const data = await fetchJson(`https://${API_HOST}/user/${encodeURIComponent(me.id)}/following?page=${page}&limit=${LIMIT}`, { withAuth: false, retries: 1 });
+    pages++;
+    const rows = ((data && data.results) || []).map(mapFollowRow).filter(Boolean);
+    if (!rows.length) break;
+    count = Number(data && data.count) || count;
+    for (const u of rows) {
+      list.push({ userId: u.id, username: u.username || u.name || "" });
+    }
+    if (rows.length < LIMIT) break;
+  }
+  const { markFollowedBatch } = likeState;
+  markFollowedBatch(list);
+  return { total: count || list.length, count: list.length, pages };
+}
+
 /** 封面 URL（i.iwara.tv；浏览器侧请走 /api/thumb 以免 DNS 污染） */
 function thumbnailUrl(v) {
   if (!v) return "";
@@ -846,4 +899,4 @@ async function getVideoState(id) {
   };
 }
 
-module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, likeVideo, unlikeVideo, followUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
+module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
