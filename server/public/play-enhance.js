@@ -131,15 +131,19 @@ function initHoldFastForward(art, ctx) {
       syncSpeedBtn(art);
     }
   }
+  ctx.clearHold = clearHold; // 暴露给 initDragSeek：进入拖动时取消长按计时，避免拖动期间误触发 3x
   art.template.$player.addEventListener("pointerup", clearHold);
   art.template.$player.addEventListener("pointercancel", clearHold);
   art.template.$player.addEventListener("pointerleave", clearHold);
 }
 
-// 4b) 桌面按住画面左右拖动 → 拖进度条 seek（移动超过阈值即取消长按快进）
+// 4b) 按住画面左右拖动 → 拖进度条 seek（移动超过阈值即取消长按快进）
 //     pointer 捕获保证拖出画面后 pointermove/up 仍派发给画面；document 级跟随持续更新。
+//     触摸屏也适用：touch-action:none 让触摸拖动不被浏览器滚动接管（否则 pointermove 被吞、拖不动）。
 function initDragSeek(art, ctx) {
   var player = art.template.$player;
+  player.style.touchAction = "none"; // 关键：触摸拖动时持续派发 pointermove，不触发滚动/pointercancel
+  if (art.template.$video) art.template.$video.style.touchAction = "none";
   function onDragMove(e) {
     if (!ctx.drag || !ctx.drag.seeking || !art.video) return;
     var dx = e.clientX - ctx.drag.startX;
@@ -167,7 +171,8 @@ function initDragSeek(art, ctx) {
   player.addEventListener("pointermove", function (e) {
     if (!ctx.drag || ctx.drag.seeking) return;
     if (Math.abs(e.clientX - ctx.drag.startX) < 10) return; // 拖动阈值
-    ctx.drag.seeking = true; // 进入拖动：后续长按计时已由 pointermove 冒泡触发 clearHold（4a 的 leave/up 也会收尾）
+    ctx.drag.seeking = true; // 进入拖动：取消长按计时（否则拖动超过 600ms 会被误判为长按快进）
+    if (ctx.clearHold) ctx.clearHold();
   });
   player.addEventListener("pointerup", function (e) {
     if (ctx.drag && ctx.drag.seeking) {
