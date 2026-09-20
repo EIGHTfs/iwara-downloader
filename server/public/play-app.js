@@ -281,7 +281,7 @@ function refreshVideoState(vid) {
     .then(function (r) { return r.json(); })
     .then(function (j) {
       if (!j) return;
-      setStateBtn(likeBtn, !!j.liked, "❤️ 已收藏");
+      setStateBtn(likeBtn, !!j.liked, "❤️ 已点赞");
       setStateBtn(followBtn, !!j.following, "✓ 已关注");
       // 记住 authorId：关注按钮用它；video-state 失败时无法关注也不误导
       if (j.authorId) followBtn && (followBtn.dataset.authorId = j.authorId);
@@ -289,24 +289,30 @@ function refreshVideoState(vid) {
     .catch(function () {});
 }
 
+// 状态按钮点击：已开启 → DELETE 取消（取消点赞/取关），未开启 → POST 开启（点赞/关注）。
+// 依据 btn.dataset.on 判断当前态，点一下翻转一次，由后端返回结果决定最终显示。
 function bindStateButtons() {
   likeBtn = $("#likeBtn");
   followBtn = $("#followBtn");
   if (likeBtn) {
-    likeBtn.dataset.off = "❤️ 收藏";
+    likeBtn.dataset.off = "❤️ 点赞";
     likeBtn.addEventListener("click", function () {
       var btn = likeBtn;
       if (btn.disabled) return;
+      var on = btn.dataset.on === "true";
       stateBtnCooldown(btn); // 冷却期内不可再点（真实官方接口，防误点轰炸）
-      fetch("/api/like", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: id })
-      }).then(function (r) { return r.json(); })
+      var p = on
+        ? fetch("/api/like?id=" + encodeURIComponent(id), { method: "DELETE", credentials: "same-origin" })
+        : fetch("/api/like", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: id })
+          });
+      p.then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) setStateBtn(btn, true, "❤️ 已收藏");
-          else if (window.showFeedback) showFeedback((j && j.error) || "收藏失败", "err");
+          if (j && j.ok) setStateBtn(btn, !on, "❤️ 已点赞");
+          else if (window.showFeedback) showFeedback((j && j.error) || (on ? "取消点赞失败" : "点赞失败"), "err");
         })
         .catch(function () {});
     });
@@ -318,16 +324,20 @@ function bindStateButtons() {
       if (btn.disabled) return;
       var userId = btn.dataset.authorId || "";
       if (!userId) { if (window.showFeedback) showFeedback("暂未取得作者 id，无法关注", "err"); return; }
+      var on = btn.dataset.on === "true";
       stateBtnCooldown(btn); // 冷却期内不可再点（真实官方接口，防误点轰炸）
-      fetch("/api/follow", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: userId })
-      }).then(function (r) { return r.json(); })
+      var p = on
+        ? fetch("/api/follow?userId=" + encodeURIComponent(userId), { method: "DELETE", credentials: "same-origin" })
+        : fetch("/api/follow", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: userId })
+          });
+      p.then(function (r) { return r.json(); })
         .then(function (j) {
-          if (j && j.ok) setStateBtn(btn, true, "✓ 已关注");
-          else if (window.showFeedback) showFeedback((j && j.error) || "关注失败", "err");
+          if (j && j.ok) setStateBtn(btn, !on, "✓ 已关注");
+          else if (window.showFeedback) showFeedback((j && j.error) || (on ? "取关失败" : "关注失败"), "err");
         })
         .catch(function () {});
     });
