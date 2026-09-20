@@ -117,6 +117,13 @@ function markUnliked(videoId) {
   if (delete load().liked[id]) save();
 }
 
+/** 取消关注（DELETE /api/follow 成功后同步删本地记录） */
+function markUnfollowed(userId) {
+  const id = String(userId || "").trim();
+  if (!id) return;
+  if (delete load().followed[id]) save();
+}
+
 function isFollowing(userId) {
   const id = String(userId || "").trim();
   if (!id) return false;
