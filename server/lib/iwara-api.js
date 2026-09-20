@@ -498,11 +498,11 @@ async function listFollowing(force) {
  */
 async function listLikedAll() {
   await ensureAccessToken(false);
-  const LIMIT = 96;
+  const LIMIT = 50; // 官方上限：limit>50 一律截断成 50（实测 limit=96 也只返回 50 条），用 96 会提前 break 只回填一页
   const ids = [];
   let pages = 0;
   let total = 0;
-  for (let page = 0; page < 60; page++) {
+  for (let page = 0; page < 120; page++) {
     const data = await fetchJson(`https://${API_HOST}/videos?liked=1&page=${page}&limit=${LIMIT}`, { withAuth: false, retries: 1 });
     pages++;
     const rows = ((data && data.results) || []);
@@ -524,11 +524,11 @@ async function listLikedAll() {
  */
 async function syncFollowedAll() {
   const me = await currentUser();
-  const LIMIT = 96;
+  const LIMIT = 50; // 官方上限：limit>50 一律截断成 50，用 96 会提前 break 只回填一页
   let count = 0;
   let pages = 0;
   const list = [];
-  for (let page = 0; page < 60; page++) {
+  for (let page = 0; page < 120; page++) {
     const data = await fetchJson(`https://${API_HOST}/user/${encodeURIComponent(me.id)}/following?page=${page}&limit=${LIMIT}`, { withAuth: false, retries: 1 });
     pages++;
     const rows = ((data && data.results) || []).map(mapFollowRow).filter(Boolean);
