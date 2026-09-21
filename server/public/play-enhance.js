@@ -1,4 +1,4 @@
-// 播放器交互增强（B 站式）：倍速按钮 + 长按 3x 快进 + 左右拖动进度条 + 长按抑制设置菜单
+// 播放器交互增强（B 站式）：倍速按钮 + 长按 3x 快进 + 画面左右拖动 scrub seek + 长按抑制设置菜单
 // 从 play-app.js 的 initPlayer 拆分而来（play-app.js 超 400 行按职责拆分）；
 // initPlayer 创建 artplayer 实例后调用 enhancePlayer(art)。
 // 移动端长按倍速走 ArtPlayer 官方 fastForward（artOptions 里 fastForward: true），不在此实现。
@@ -32,7 +32,7 @@ function enhancePlayer(art) {
   initTapToPlay(art, ctx);
   initCtxSuppress(art, ctx);
   initVolumeSwipe(art, ctx); // 画面竖滑音量（桌面 + 移动端都启用）
-  initDragSeek(art, ctx);    // 画面横滑 seek（桌面 + 移动端都启用：pointer 事件 + touch-action:none，
+  initDragSeek(art, ctx);    // 画面横滑 scrub seek（桌面 + 移动端都启用：pointer 事件 + touch-action:none，
                              // 触摸拖动天然派发 pointermove；官方 gesture 只在进度条 $bar，区域不冲突）
   initProgressTouch(art);    // 进度条触摸滑动 seek（官方只有桌面 mouse 拖动，触屏滑动补 pointer 通道）
   if (IS_MOBILE) return; // 移动端：长按快进走官方 fastForward（触摸长按与自绘长按避免双份冲突）
@@ -141,22 +141,38 @@ function initHoldFastForward(art, ctx) {
   art.template.$player.addEventListener("pointerleave", clearHold);
 }
 
-// 4b) 按住画面左右拖动 → 拖进度条 seek（移动超过阈值即取消长按快进）
+// 4b) 按住画面左右拖动 → 画面 scrub seek（拖动中进度条/时间实时跟随，画面实时跳帧，1s 最小单位）
+//     用户语义：拖动画面时「拖的进度条时间跟着变」——不是松手才跳。实现：
+//       - 拖动中按位移实时计算目标时间并取整到整秒（1s 最小单位），实时 art.currentTime 赋值
+//         → ArtPlayer 内部自动更新进度条/时间显示，画面 seek 到目标帧（画面实时变动）；
+//       - 播放中拖动先暂停（避免连续 seek 触发缓冲抖动），松手恢复播放（若原本在播）；
+//       - 方向判定：|dx|>|dy| 才进入 seek（竖滑交给 initVolumeSwipe），12px 阈值防误触。
 //     pointer 捕获保证拖出画面后 pointermove/up 仍派发给画面；document 级跟随持续更新。
 //     触摸屏也适用：touch-action:none 让触摸拖动不被浏览器滚动接管（否则 pointermove 被吞、拖不动）。
 function initDragSeek(art, ctx) {
   var player = art.template.$player;
   player.style.touchAction = "none"; // 关键：触摸拖动时持续派发 pointermove，不触发滚动/pointercancel
   if (art.template.$video) art.template.$video.style.touchAction = "none";
-  function onDragMove(e) {
-    if (!ctx.drag || !ctx.drag.seeking || !art.video) return;
+
+  function targetTime(e) {
     var dx = e.clientX - ctx.drag.startX;
     var ratio = dx / ctx.drag.width;
-    var nt = Math.min(Math.max(ctx.drag.startTime + ratio * ctx.drag.duration, 0), ctx.drag.duration - 0.1);
-    if (Math.abs(nt - ctx.drag.lastT) > 0.05) {
-      ctx.drag.lastT = nt;
-      art.currentTime = nt;
-    }
+    return Math.min(Math.max(ctx.drag.startTime + ratio * ctx.drag.duration, 0), ctx.drag.duration - 0.1);
+  }
+  // 1s 最小单位：目标时间取整到整秒（拖动中进度条/时间按整秒跟随）
+  function snapToSec(t) {
+    if (!isFinite(t)) return 0;
+    return Math.max(0, Math.round(t));
+  }
+  function onDragMove(e) {
+    if (!ctx.drag || !ctx.drag.seeking || !art.video) return;
+    var sec = snapToSec(targetTime(e));
+    if (ctx.drag.lastT === sec) return; // 同一秒不重复 seek
+    ctx.drag.lastT = sec;
+    // 播放中拖动：先暂停（连续 seek 播放中会频繁触发缓冲抖动），画面停在目标帧实时变动
+    if (ctx.drag.wasPlaying === undefined) ctx.drag.wasPlaying = !art.video.paused;
+    if (ctx.drag.wasPlaying && !art.video.paused) art.pause();
+    art.currentTime = sec; // 实时 seek：进度条/时间自动跟随，画面跳到目标帧
   }
   document.addEventListener("pointermove", onDragMove);
   art.on("destroy", function () { document.removeEventListener("pointermove", onDragMove); });
@@ -169,7 +185,7 @@ function initDragSeek(art, ctx) {
     ctx.suppressCtxMenu = true; // 按住期间不弹 contextmenu（与 4a 共用）
     var d = art.duration || 0;
     if (d > 0) {
-      ctx.drag = { startX: e.clientX, startTime: art.currentTime || 0, duration: d, width: player.clientWidth || 1, lastT: -1, seeking: false };
+      ctx.drag = { startX: e.clientX, startTime: art.currentTime || 0, duration: d, width: player.clientWidth || 1, lastT: -1, seeking: false, wasPlaying: undefined };
     }
   });
   player.addEventListener("pointermove", function (e) {
@@ -179,13 +195,17 @@ function initDragSeek(art, ctx) {
     if (ctx.clearHold) ctx.clearHold();
   });
   player.addEventListener("pointerup", function (e) {
-    if (ctx.drag && ctx.drag.seeking) {
-      var dx = e.clientX - ctx.drag.startX;
-      var ratio = dx / ctx.drag.width;
-      var nt = Math.min(Math.max(ctx.drag.startTime + ratio * ctx.drag.duration, 0), ctx.drag.duration - 0.1);
-      if (art.video) art.currentTime = nt; // 结束定格在最终位置
+    if (ctx.drag) {
+      if (ctx.drag.seeking) {
+        var sec = snapToSec(targetTime(e));
+        if (art.video) art.currentTime = sec; // 结束定格在最终整秒位置
+        // 原本在播放 → 恢复播放
+        if (ctx.drag.wasPlaying && art.video && art.video.paused) {
+          try { art.play(); } catch (_) {}
+        }
+      }
+      ctx.drag = null;
     }
-    ctx.drag = null;
   });
   player.addEventListener("pointercancel", function () { ctx.drag = null; });
   player.addEventListener("pointerleave", function () {
