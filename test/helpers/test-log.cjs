@@ -1,6 +1,6 @@
 // test/helpers/test-log.cjs —— 测试基建助手（每个测试文件首行 require 它）
 // 1) 应用 CJS 强制（cjs-bootstrap），使 server/*.js 可被 require
-// 2) 提供日志：每个测试文件留一份 log 到 test/logs/<名>.log，记录每用例 PASS/FAIL
+// 2) 提供日志：每个测试文件留一份 log 到 test/logs/<名>.log，记录每用例 PASS/FAIL + 关键断言，方便检查
 require("../../server/lib/cjs-bootstrap.cjs");
 
 "use strict";
@@ -24,6 +24,7 @@ function makeLog(name) {
   };
 }
 
+// 包装 node:test 的 test：自动 try/catch，把 PASS/FAIL 写进 log 再 flush，异常仍抛出让 node:test 判失败
 function loggedTest(log, name, fn) {
   test(name, async (t) => {
     try {
