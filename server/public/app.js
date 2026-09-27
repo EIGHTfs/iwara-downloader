@@ -1180,7 +1180,7 @@ function fillSettings(s) {
   $("#set-iwaraCfgIp").value = settings.iwaraCfgIp || "104.26.12.12";
   $("#set-aria2Dns").value = settings.aria2Dns || "";
   // Cookie 框只在空着时回填一次：保存后不要把旧值盖回刚贴进去的新凭证
-  const cookieEl = $("#set-iwaraCookie");
+  const cookieEl = $("#cookieInput");
   if (cookieEl && !cookieEl.value.trim()) {
     cookieEl.placeholder = settings.hasCookie
       ? "已保存 Cookie（再贴新凭证才会覆盖；留空不改）"
@@ -1312,14 +1312,14 @@ function readBackendSettings() {
 }
 // 凭证卡：iwaraCookie（留空 = 不覆盖已存凭证）
 function readCredSettings() {
-  const credText = $("#set-iwaraCookie").value;
+  const credText = $("#cookieInput").value;
   if (!credText || !credText.trim()) return {};
   return { iwaraCookie: credText };
 }
 
 // 保存成功后的收尾：清空凭证输入框（改提示语）、回填、状态与刷新
 function afterSettingsSaved(r) {
-  const cookieEl = $("#set-iwaraCookie");
+  const cookieEl = $("#cookieInput");
   if (cookieEl) {
     cookieEl.value = "";
     cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";
@@ -1365,7 +1365,7 @@ function bindSettingsSave() {
   bindCard("saveLikedBtn", readLikedSettings, "likedStatus");
   bindCard("savePlayBtn", readPlaySettings, "playStatus");
   bindCard("saveBackendBtn", readBackendSettings, "backendStatus");
-  bindCard("saveCredBtn", readCredSettings, "credStatus", afterCredSaved);
+  bindCard("saveCookieBtn", readCredSettings, "cookieStatus", afterCredSaved);
 
   // 底部统一保存（兼容旧行为：提交全部字段）
   const saveBtn = $("#saveSettingsBtn");
@@ -1396,7 +1396,7 @@ function afterCardSaved(r) {
 }
 // 凭证卡保存后：清空凭证输入框（改提示语）+ 回填
 function afterCredSaved(r) {
-  const cookieEl = $("#set-iwaraCookie");
+  const cookieEl = $("#cookieInput");
   if (cookieEl) {
     cookieEl.value = "";
     cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";

@@ -1,0 +1,17 @@
+<div class="card">
+      <h2>登录凭证</h2>
+      <p class="hint">粘贴油猴脚本复制的组合文本（<code>Cookie=</code> / <code>Token=</code> / <code>AccessToken=</code>），或只填 Cookie。留空保存 = 不改已存凭证。</p>
+      <div class="row">
+        <label style="flex:1">Cookie / 凭证文本
+          <textarea id="cookieInput" rows="4" placeholder="粘贴新凭证后点保存；留空表示不改已保存的值" style="width:100%"></textarea>
+        </label>
+      </div>
+      <div class="row mt">
+        <button class="primary" id="saveCookieBtn" type="button">💾 保存凭证</button>
+        <span class="status" id="cookieStatus"></span>
+      </div>
+      <div class="row mt">
+        <button id="gbLoginCheckBtn" type="button">检测登录状态</button>
+      </div>
+      <pre id="gbLoginStatus" class="login-detect"></pre>
+    </div>
