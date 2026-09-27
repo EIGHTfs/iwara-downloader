@@ -100,23 +100,8 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Iwara 凭证</h2>
-      <p class="hint">可粘贴油猴脚本复制的组合文本（Cookie= / Token= / AccessToken=），或只填 Cookie。油猴脚本见页头「油猴脚本」。</p>
-      <div class="row">
-        <label style="flex:1">Cookie / 凭证文本
-          <textarea id="set-iwaraCookie" rows="4" placeholder="粘贴新凭证后点保存；留空表示不改已保存的值" style="width:100%"></textarea>
-        </label>
-      </div>
-      <div class="row mt">
-        <button class="primary" id="saveCredBtn" type="button">💾 保存凭证</button>
-        <span class="status" id="credStatus"></span>
-      </div>
-      <div class="row mt">
-        <button id="gbLoginCheckBtn" type="button">检测登录状态</button>
-      </div>
-      <pre id="gbLoginStatus" class="login-detect"></pre>
-    </div>
+    <!-- 登录凭证：半通用卡，系级 panel-settings/ 提供（textarea 组合文本实现，iwara 即其来源） -->
+    <!-- @frag:tab-panel/panel-settings/cookie -->
 
     <!-- 修改密码：纯通用卡，系级 panel-settings/ 提供（与 auto-update-card 同模式） -->
     <!-- @frag:tab-panel/panel-settings/pwd -->
