@@ -77,19 +77,16 @@
     "templates/_downloader/html/setup.html": "server/public/setup.html",
     "templates/_downloader/styles/style.css": "server/public/style.css",
     "templates/js/theme-init.js": "server/public/theme-init.js",
-    "templates/_downloader/_iwara/html/scripts.html": "server/public/fragments/scripts.html",
     "templates/_downloader/_iwara/json/config.schema.json": "server/config.schema.json",
     "templates/_downloader/_iwara/styles/row-thumb.css": "server/public/fragments/styles/row-thumb.css",
     "templates/_downloader/_iwara/html/tab-panel/panel-download.html": "server/public/fragments/tab-panel/panel-download.html",
     "templates/_downloader/_iwara/html/tab-panel/panel-progress.html": "server/public/fragments/tab-panel/panel-progress.html",
     "templates/_downloader/_iwara/html/tab-panel/panel-search.html": "server/public/fragments/tab-panel/panel-search.html",
     "templates/_downloader/_iwara/html/tab-panel/panel-settings.html": "server/public/fragments/tab-panel/panel-settings.html",
-    "templates/_downloader/_iwara/html/topbar/badge.html": "server/public/fragments/topbar/badge.html",
     "templates/_downloader/_iwara/html/topbar/userscript.html": "server/public/fragments/topbar/userscript.html",
     "templates/_downloader/_iwara/assets/iwara-logo.png": "server/public/iwara-logo.png",
     "templates/_downloader/_iwara/assets/favicon.ico": "server/public/favicon.ico",
     "templates/_downloader/_iwara/assets/favicon.png": "server/public/favicon.png",
-    "templates/_downloader/_iwara/server/lib/auto-update.js": "server/lib/auto-update.js",
     "templates/_downloader/_iwara/server/lib/iwara-api.js": "server/lib/iwara-api.js",
     "templates/_downloader/_iwara/server/lib/like-state.js": "server/lib/like-state.js",
     "templates/_downloader/_iwara/server/routes/like.js": "server/routes/like.js",
@@ -97,7 +94,11 @@
     "templates/_downloader/_iwara/js/play-enhance.js": "server/public/play-enhance.js",
     "templates/_downloader/_iwara/js/play-list.js": "server/public/play-list.js",
     "templates/_downloader/_iwara/html/play.html": "server/public/play.html",
-    "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js"
+    "templates/js/tool/tool-detect.js": "server/tool/tool-detect.js",
+    "templates/_downloader/html/topbar/badge.html": "server/public/fragments/topbar/badge.html",
+    "templates/_downloader/html/scripts.html": "server/public/fragments/scripts.html",
+    "templates/_downloader/_iwara/html/scripts-extra.html": "server/public/fragments/scripts-extra.html",
+    "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
   },
   "init": false
 }

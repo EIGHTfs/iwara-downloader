@@ -1,0 +1,11 @@
+{
+  "projectName": "iwara-downloader",
+  "defaultRepo": "EIGHTfs/iwara-downloader",
+  "extraExclude": [
+    "json/cdn_hosts_state.json",
+    "json/following_cache.json",
+    "json/index",
+    "json/profile"
+  ],
+  "extraChmodScripts": []
+}
