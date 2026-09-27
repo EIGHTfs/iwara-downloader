@@ -118,18 +118,8 @@
       <pre id="gbLoginStatus" class="login-detect"></pre>
     </div>
 
-    <div class="card">
-      <h2>修改密码</h2>
-      <p class="hint">已设过密码时需先填旧密码；首次设置可留空。</p>
-      <div class="row">
-        <input type="password" id="oldPwd" placeholder="旧密码（已设过才填）" style="width:100%">
-      </div>
-      <div class="row mt">
-        <input type="password" id="newPwd" placeholder="新密码（至少 4 位）" style="flex:1">
-        <button class="primary" id="changePwdBtn" type="button">修改</button>
-      </div>
-      <div class="status" id="pwdStatus"></div>
-    </div>
+    <!-- 修改密码：纯通用卡，系级 panel-settings/ 提供（与 auto-update-card 同模式） -->
+    <!-- @frag:tab-panel/panel-settings/pwd -->
 
     <div class="card">
       <h2>视频索引</h2>
@@ -143,16 +133,8 @@
       <div class="status" id="indexStatus"></div>
     </div>
 
-    <div class="card">
-      <h2>📦 数据备份 / 恢复</h2>
-      <p class="hint">导出为 zip：包含全部用户数据（配置、搜索记录、下载任务、CDN 状态等，按 <code>userdata-manifest.json</code> 清单）。换机/重装后导入即可恢复。</p>
-      <div class="row">
-        <button class="primary" id="exportDataBtn" type="button">⬇ 导出用户数据</button>
-        <button class="ghost" id="importDataBtn" type="button">⬆ 导入用户数据</button>
-        <input type="file" id="importDataFile" accept=".zip" style="display:none">
-      </div>
-      <div class="status" id="dataStatus"></div>
-    </div>
+    <!-- 数据备份：纯通用卡，系级 panel-settings/ 提供 -->
+    <!-- @frag:tab-panel/panel-settings/backup -->
 
     <div class="row mt">
       <button class="primary" id="saveSettingsBtn" type="button">💾 保存设置</button>

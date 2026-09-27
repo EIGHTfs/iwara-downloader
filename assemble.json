@@ -99,7 +99,8 @@
     "templates/_downloader/html/scripts.html": "server/public/fragments/scripts.html",
     "templates/_downloader/_iwara/html/scripts-extra.html": "server/public/fragments/scripts-extra.html",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js",
-    "templates/js/config/brand.js": "server/config/brand.js"
+    "templates/js/config/brand.js": "server/config/brand.js",
+    "templates/_downloader/html/tab-panel/panel-settings/": "server/public/fragments/tab-panel/panel-settings/"
   },
   "init": false
 }
