@@ -98,7 +98,8 @@
     "templates/_downloader/html/topbar/badge.html": "server/public/fragments/topbar/badge.html",
     "templates/_downloader/html/scripts.html": "server/public/fragments/scripts.html",
     "templates/_downloader/_iwara/html/scripts-extra.html": "server/public/fragments/scripts-extra.html",
-    "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js"
+    "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js",
+    "templates/js/config/brand.js": "server/config/brand.js"
   },
   "init": false
 }

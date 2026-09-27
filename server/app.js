@@ -70,8 +70,9 @@ function loadFragmentAssembler() {
   if (!Object.keys(pages).length) return null;
   let brand = null;
   try {
-    const bf = path.join(PUBLIC_DIR, "brand.json");
-    if (fs.existsSync(bf)) brand = JSON.parse(fs.readFileSync(bf, "utf8"));
+    // 2026-09-28：brand 从项目根 assemble.json 的 brand 段读取（清单即唯一真相），统一实现见 ./config/brand
+    const { readBrand } = require("./config/brand");
+    brand = readBrand(__dirname);
   } catch (_) { brand = null; }
   return createFragmentAssembler({ dir: fragDir, pages: pages, watch: true, brand: brand });
 }
