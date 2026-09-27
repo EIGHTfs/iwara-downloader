@@ -1258,18 +1258,46 @@ function bindSettingsFields() {
   }
 }
 
-// 保存设置按钮（设置页面板内；原先挂在右下角悬浮按钮上，非设置页误触风险大）
-// 读设置表单 → 提交 body；模板缺 {ID} 时返回 null（调用方负责报错）
+// 保存设置（2026-09-28 改为每卡片小保存）：
+//   - 每张功能卡自己的「保存」按钮只提交本卡字段（服务端按字段增量更新）
+//   - 底部「保存设置」兼容保留（提交全部字段，行为与旧版一致）
+// 模板缺 {ID} 时返回 null（调用方负责报错）——仅路径与命名卡校验。
 function readSettingsForm() {
+  return Object.assign(
+    { fileNameTemplate: $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "") },
+    readPathSettings(),
+    readLikedSettings(),
+    readPlaySettings(),
+    readBackendSettings(),
+    readCredSettings()
+  );
+}
+// 路径与命名卡：downloadPath / fileNameTemplate（校验 {ID}）
+function readPathSettings() {
   const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
   if (tpl.indexOf("{ID}") < 0) return null;
-  const body = {
+  return {
     downloadPath: $("#set-downloadPath").value.trim(),
-    fileNameTemplate: tpl,
+    fileNameTemplate: tpl
+  };
+}
+// 点赞/关注卡：showLikedInSearch / autoLike / autoFollow
+function readLikedSettings() {
+  return {
     showLikedInSearch: $("#set-showLikedInSearch") ? $("#set-showLikedInSearch").checked : true,
     autoLike: $("#set-autoLike") ? $("#set-autoLike").checked : false,
-    autoFollow: $("#set-autoFollow") ? $("#set-autoFollow").checked : false,
-    playPublic: $("#set-playPublic") ? $("#set-playPublic").checked : true,
+    autoFollow: $("#set-autoFollow") ? $("#set-autoFollow").checked : false
+  };
+}
+// 播放卡：playPublic
+function readPlaySettings() {
+  return {
+    playPublic: $("#set-playPublic") ? $("#set-playPublic").checked : true
+  };
+}
+// 下载后端卡：downloadBackend / concurrency / downloadToggles / aria2 相关 / CF IP / DNS
+function readBackendSettings() {
+  return {
     downloadBackend: $("#set-downloadBackend").value,
     concurrency: parseInt($("#set-concurrency").value, 10) || 3,
     downloadToggles: {
@@ -1281,9 +1309,12 @@ function readSettingsForm() {
     iwaraCfgIp: $("#set-iwaraCfgIp").value.trim(),
     aria2Dns: $("#set-aria2Dns").value.trim()
   };
+}
+// 凭证卡：iwaraCookie（留空 = 不覆盖已存凭证）
+function readCredSettings() {
   const credText = $("#set-iwaraCookie").value;
-  if (credText && credText.trim()) body.iwaraCookie = credText;   // 留空 = 不覆盖已存凭证
-  return body;
+  if (!credText || !credText.trim()) return {};
+  return { iwaraCookie: credText };
 }
 
 // 保存成功后的收尾：清空凭证输入框（改提示语）、回填、状态与刷新
@@ -1302,7 +1333,41 @@ function afterSettingsSaved(r) {
   refreshIwaraBadge();
 }
 
+// 每卡片小保存（2026-09-28）：路径/点赞/播放/后端/凭证各卡独立保存按钮，
+// 只提交本卡字段（服务端按字段增量更新，不覆盖其它卡）；底部统一保存兼容保留。
 function bindSettingsSave() {
+  // 通用绑定器：按钮 + 分组读取函数 + 状态元素 + 成功后回调
+  function bindCard(btnId, readFn, statusId, onOk) {
+    const btn = $("#" + btnId);
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const st = statusId ? $("#" + statusId) : null;
+      try {
+        const body = readFn();
+        if (!body) {
+          if (st) setStatus(st, "文件名模板必须含 {ID}，封面和 json 靠这个 id 对视频", "err");
+          showToast("文件名模板必须含 {ID}", "err");
+          return;
+        }
+        const r = await api("/api/settings", "POST", body);
+        if (!r.ok) throw new Error(r.error || "保存失败");
+        if (st) setStatus(st, "已保存", "ok");
+        showToast("✅ 已保存设置", "ok");
+        if (onOk) onOk(r);
+        else afterCardSaved(r);
+      } catch (e) {
+        if (st) setStatus(st, e.message, "err");
+        showToast("❌ 保存失败：" + e.message, "err");
+      }
+    });
+  }
+  bindCard("savePathBtn", readPathSettings, "pathStatus");
+  bindCard("saveLikedBtn", readLikedSettings, "likedStatus");
+  bindCard("savePlayBtn", readPlaySettings, "playStatus");
+  bindCard("saveBackendBtn", readBackendSettings, "backendStatus");
+  bindCard("saveCredBtn", readCredSettings, "credStatus", afterCredSaved);
+
+  // 底部统一保存（兼容旧行为：提交全部字段）
   const saveBtn = $("#saveSettingsBtn");
   if (!saveBtn) return;
   saveBtn.addEventListener("click", async () => {
@@ -1323,16 +1388,37 @@ function bindSettingsSave() {
   });
 }
 
+// 卡片保存后的收尾：回填设置（凭证卡走 afterCredSaved 单独处理清空）
+function afterCardSaved(r) {
+  fillSettings(r.settings);
+  if (kwType() === "users") loadFollowingUsers();
+  refreshIwaraBadge();
+}
+// 凭证卡保存后：清空凭证输入框（改提示语）+ 回填
+function afterCredSaved(r) {
+  const cookieEl = $("#set-iwaraCookie");
+  if (cookieEl) {
+    cookieEl.value = "";
+    cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";
+    cookieEl.dataset.filled = "1";
+  }
+  afterCardSaved(r);
+}
+
 // 修改登录密码
 function bindSettingsPassword() {
   $("#changePwdBtn").addEventListener("click", async () => {
     const pwd = $("#newPwd").value;
     if (!pwd || pwd.length < 4) { setStatus($("#pwdStatus"), "密码至少 4 位", "err"); return; }
     try {
-      const r = await api("/api/change-password", "POST", { password: pwd });
+      // 2026-09-28：已设过密码时须传 oldPassword（服务端校验旧密码，缺省拒绝）——
+      // 修复「前端漏字段」：iwara 只发 { password } 导致老用户改密被拒。
+      const oldPwd = $("#oldPwd").value;
+      const r = await api("/api/change-password", "POST", { password: pwd, oldPassword: oldPwd });
       if (!r.ok) throw new Error(r.error || "失败");
       setStatus($("#pwdStatus"), "已修改", "ok");
       $("#newPwd").value = "";
+      $("#oldPwd").value = "";
     } catch (e) {
       setStatus($("#pwdStatus"), e.message, "err");
     }
