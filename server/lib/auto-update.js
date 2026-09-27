@@ -1,21 +1,30 @@
-// 自动更新（iwara 风格项目实例）：从框架引入工厂，只在这里传项目参数。
-// 框架实现见 server/framework/update/auto-update.js（createAutoUpdate），
-// 本文件不重复框架代码，仅作为 iwara 风格的项目参数包装层。
-// 存放规则：风格模板 server/lib/ 资产，由 assemble.json 下发到项目 server/lib/auto-update.js。
+// ============================================================
+// 自动更新（通用项目包装，最通用层）：从框架引入工厂，项目参数从同目录
+// auto-update-params.json 读取（独立参数文件，不占 config.json 运行态配置）。
+// 框架实现见 templates/js/update/auto-update.js（createAutoUpdate），本文件不重复框架代码。
+// 项目参数文件：<项目根>/server/lib/auto-update-params.json —— 由项目侧维护，
+//   与模板无关（模板只下发本通用包装，参数文件随项目自定义）。
+// 下发：assemble.json 把本文件 → 项目 server/lib/auto-update.js。
+// ============================================================
 "use strict";
+
+const fs = require("fs");
+const path = require("path");
 
 const { createAutoUpdate } = require("../update/auto-update.js");
 
+// 项目参数文件与本文件同目录（server/lib/auto-update-params.json）
+let params = {};
+const paramsPath = path.join(__dirname, "auto-update-params.json");
+try {
+  params = JSON.parse(fs.readFileSync(paramsPath, "utf8"));
+} catch (_) {
+  // 参数文件缺失（首次未配置）：用空参数，工厂默认值兜底
+}
+
 module.exports = createAutoUpdate({
-  projectName: "iwara-downloader",
-  defaultRepo: "EIGHTfs/iwara-downloader",
-  // iwara 特有运行态数据（github 模式绝不覆盖）
-  extraExclude: [
-    "json/cdn_hosts_state.json",
-    "json/following_cache.json",
-    "json/index",
-    "json/profile",
-  ],
-  // 前端框架文件（index.html / style.css 含 @frag 指令）：改由组装器热更新，不重启服务
-  extraWatchExclude: ["index.html", "public/index.html", "style.css", "public/style.css"],
+  projectName: params.projectName || "",
+  defaultRepo: params.defaultRepo || "",
+  extraExclude: params.extraExclude || [],
+  extraChmodScripts: params.extraChmodScripts || [],
 });
