@@ -1,0 +1,10 @@
+<div class="card">
+      <h2>📦 数据备份 / 恢复</h2>
+      <p class="hint">导出为 zip：包含全部用户数据（配置、搜索记录、下载任务、索引/映射等，按 <code>userdata-manifest.json</code> 清单）。换机/重装后导入即可恢复。</p>
+      <div class="row">
+        <button class="primary" id="exportDataBtn" type="button">⬇ 导出用户数据</button>
+        <button class="ghost" id="importDataBtn" type="button">⬆ 导入用户数据</button>
+        <input type="file" id="importDataFile" accept=".zip" style="display:none">
+      </div>
+      <div class="status" id="dataStatus"></div>
+    </div>
