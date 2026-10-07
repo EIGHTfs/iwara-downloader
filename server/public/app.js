@@ -1427,8 +1427,8 @@ function bindSettingsPassword() {
 
 // Iwara 账号登录状态检测
 function bindSettingsAccountCheck() {
-  $("#gbLoginCheckBtn").addEventListener("click", async () => {
-    const el = $("#gbLoginStatus");
+  $("#loginCheckBtn").addEventListener("click", async () => {
+    const el = $("#loginStatus");
     el.textContent = "检测中…";
     try {
       const r = await api("/api/account-check");
