@@ -64,15 +64,15 @@ function setStatus(el, msg, type) {
 // 2026-09-01 悬浮提示（右下角 toast，自动淡出；保存设置等操作反馈用）
 let _toastTimer = null;
 function showToast(msg, type) {
-  let el = $("#gbmdToast");
+  let el = $("#appToast");
   if (!el) {
     el = document.createElement("div");
-    el.id = "gbmdToast";
-    el.className = "gbmd-toast";
+    el.id = "appToast";
+    el.className = "app-toast";
     document.body.appendChild(el);
   }
   el.textContent = msg;
-  el.className = "gbmd-toast " + (type === "err" ? "err" : "ok") + " show";
+  el.className = "app-toast " + (type === "err" ? "err" : "ok") + " show";
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { el.classList.remove("show"); }, 3200);
 }
