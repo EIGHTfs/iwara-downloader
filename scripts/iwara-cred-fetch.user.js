@@ -181,7 +181,7 @@
         panelEl.querySelector("#iwcred-add-form").style.display = "none";
         fillServerSelect();
         srvSetStatus("已添加 " + url, "ok");
-        showPanel();
+        openPanel();
     }
     function deleteSelectedServer() {
         const sel = panelEl.querySelector("#iwcred-server");
@@ -194,7 +194,7 @@
         storeSet(SRV_PWD_KEY, next.password);
         fillServerSelect();
         srvSetStatus("已删除 " + url, "ok");
-        showPanel();
+        openPanel();
     }
 
     /** 读本机 Cookie：GM_cookie 优先（含 HttpOnly 项），不可用时回退 document.cookie。
@@ -268,7 +268,7 @@
                         let setCookie = "";
                         try {
                             const hdrs = r.responseHeaders || "";
-                            // 会话 cookie 名可能带项目前缀（如 iwara_session —— 同机多项目各用一名，
+                            // 会话 cookie 名可能带项目前缀（如 <项目>_session —— 同机多项目各用一名，
                             // 避免 iwara/gbmd/gallery 互相覆盖会话）。这里连名字一起取，存完整 name=value，
                             // 后续请求头直接可用；同时兼容旧的无前缀 session。
                             const m = hdrs.match(/Set-Cookie:\s*([A-Za-z0-9_-]*session)=([^;\s]+)/i);
@@ -355,6 +355,12 @@
     }
     function srvInput() { return panelEl ? panelEl.querySelector("#iwcred-server") : null; }
 
+    /** 会话串 → 请求头。会话串已是完整 name=value（gmRequest 解析 Set-Cookie 时连 cookie 名一起取），
+     *  直接用作 Cookie 头——不再拼 "session="，否则会话名带项目前缀（如 gbmd_session）时服务端认不出。 */
+    function sessionHeaders(session) {
+        return session ? { Cookie: session } : {};
+    }
+
     async function fetchServerCreds(base, session) {
         const r = await gmRequest("GET", base + "/api/cred", undefined, 12000, sessionHeaders(session));
         if (!r.ok || !r.json || !r.json.ok) return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
@@ -362,7 +368,7 @@
     }
 
     /** 把 Cookie 项写回浏览器：document.cookie 写当前域，GM_cookie.set 兜底 HttpOnly 项。
-     *  【差异取优合并】站点可能有多个域（如 gamebanana.com 与 www.gamebanana.com 要双写），
+     *  【差异取优合并】站点可能有多个域（主域与 www 子域都要写回），
      *  域列表取配置 SITE_DOMAINS（逗号分隔）；单域项目照常工作（gbmd 侧的多域写法下沉到内核）。 */
     function applyCookieToBrowser(cookieText) {
         const items = String(cookieText || "").split(";").map((s) => s.trim()).filter((p) => p && !/^=/.test(p) && !/deleted/i.test(p));
@@ -468,16 +474,56 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
             fabEl.id = "iwcred-fab";
             fabEl.title = "Iwara 下载助手";
             const img = document.createElement("img");
-            img.src = IWARA_ICON;
+            img.src = "data:image/png;base64,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";   // 图标走配置占位符：各项目只提供 ICON，模板不依赖项目特有常量名（曾误用 IWARA_ICON 致别的项目 ReferenceError）
             img.alt = "Iwara";
             fabEl.appendChild(img);
-            fabEl.addEventListener("click", showPanel);
+            fabEl.addEventListener("click", openPanel);
         }
         mountUi(fabEl);
     }
 
     /** 面板 DOM 骨架（id 统一 iwcred- 前缀，组装时替换） */
-    function panelHtml() {
+    function ensureToast() {
+        if (toastEl && document.documentElement.contains(toastEl)) return;
+        if (!toastEl) {
+            toastEl = document.createElement("div");
+            toastEl.id = "iwcred-toast";
+        }
+        mountUi(toastEl);
+    }
+
+    /** 组装 UI：样式 + 浮动按钮 + 面板 + 提示条（幂等；供各处调用，只建一次） */
+    function ensureUi() {
+        if (!document.documentElement) return false;
+        injectStyle();
+        ensureFab();
+        if (!panelEl || !document.documentElement.contains(panelEl)) {
+            if (!panelEl) {
+                panelEl = document.createElement("div");
+                panelEl.id = "iwcred-panel";
+                // 面板 DOM 与事件绑定由项目片段提供（buildPanelHtml / bindPanelEvents 钩子，拼接后同作用域）；
+                // 项目未提供时留空壳也不报错——通用骨架（浮动按钮/提示条/服务器列表/探活登录）照常可用。
+                panelEl.innerHTML = (typeof buildPanelHtml === "function") ? buildPanelHtml() : "";
+                panelEl.style.display = "none";
+                panelEl.classList.add("server-ok");
+                if (typeof bindPanelEvents === "function") bindPanelEvents();
+            }
+            mountUi(panelEl);
+        }
+        ensureToast();
+        return true;
+    }
+
+    function setStatus(msg, cls) {
+        if (!panelEl) return;
+        const el = panelEl.querySelector("#iwcred-status");
+        el.textContent = msg;
+        el.className = cls || "";
+        setTimeout(() => { el.textContent = ""; el.className = ""; }, 3500);
+    }
+
+    /** 面板 DOM 骨架（本项目特化；由模板 28-ui.js 的 ensureUi 通过 buildPanelHtml 钩子调用） */
+    function buildPanelHtml() {
         return `
 <div id="iwcred-head"><b>Iwara 下载助手</b><span id="iwcred-close">✕</span></div>
 <div id="iwcred-userbar">打开即可发送；凭证按失效时间缓存</div>
@@ -549,42 +595,13 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
             if (!hit) return;
             storeSet(SRV_KEY, hit.url);
             storeSet(SRV_PWD_KEY, hit.password);
-            showPanel();
+            openPanel();
         });
         panelEl.querySelector("#iwcred-inject").addEventListener("click", srvInjectFlow);
     }
 
     /** 底部提示条：创建 + 挂载（幂等） */
-    function ensureToast() {
-        if (toastEl && document.documentElement.contains(toastEl)) return;
-        if (!toastEl) {
-            toastEl = document.createElement("div");
-            toastEl.id = "iwcred-toast";
-        }
-        mountUi(toastEl);
-    }
-
-    /** 组装 UI：样式 + 浮动按钮 + 面板 + 提示条（幂等；供各处调用，只建一次） */
-    function ensureUi() {
-        if (!document.documentElement) return false;
-        injectStyle();
-        ensureFab();
-        if (!panelEl || !document.documentElement.contains(panelEl)) {
-            if (!panelEl) {
-                panelEl = document.createElement("div");
-                panelEl.id = "iwcred-panel";
-                panelEl.innerHTML = panelHtml();
-                panelEl.style.display = "none";
-                panelEl.classList.add("server-ok");
-                bindPanelEvents();
-            }
-            mountUi(panelEl);
-        }
-        ensureToast();
-        return true;
-    }
-
-    function showPanel() {
+    function openPanel() {
         if (!ensureUi()) return;
         panelEl.style.display = "block";
         try { fillInstant(); } catch (e) { log("fillInstant", e); }
@@ -595,13 +612,6 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         setTimeout(() => { syncFromServer(false).catch((e) => log("syncFromServer", e)); }, 0);
     }
 
-    function setStatus(msg, cls) {
-        if (!panelEl) return;
-        const el = panelEl.querySelector("#iwcred-status");
-        el.textContent = msg;
-        el.className = cls || "";
-        setTimeout(() => { el.textContent = ""; el.className = ""; }, 3500);
-    }
     function hideCtxMenu() {
         const m = document.getElementById("iwcred-ctx");
         if (m && m.parentNode) m.parentNode.removeChild(m);
@@ -706,10 +716,6 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         return { ok: false, loggedIn: false };
     }
 
-    function sessionHeaders(session) {
-        // session 已是完整 name=value（会话 cookie 名可能带项目前缀，如 iwara_session）
-        return session ? { Cookie: session } : {};
-    }
 
     /** 拿服务器 session cookie。有密码则 POST /api/login，session 缓存约 70 小时。 */
     async function ensureServerSession(base) {
@@ -1023,7 +1029,7 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         const cur = currentServer();
         const base = cur ? cur.url : "";
         if (!base) {
-            showPanel();
+            openPanel();
             srvSetStatus("没有服务器地址：请先点「添加」写入服务端", "err");
             showToast("请先在面板添加服务器");
             return;
