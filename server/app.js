@@ -345,7 +345,9 @@ const server = http.createServer(async (req, res) => {
         tryListen(rnd);
       });
       srv.listen(port, () => {
-        const p = srv.address().port;
+        // address() 在端口竞态下可能为 null（旧版曾因 srv.address().port 抛 TypeError 崩进程）
+        const addr = srv.address();
+        const p = addr ? addr.port : port;
         srv.close(() => resolve(p));
       });
     };
