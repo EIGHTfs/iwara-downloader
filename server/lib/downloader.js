@@ -266,7 +266,7 @@ function partBytes(partPath) {
 // 下载请求头（断点续传 + Referer + 可选 Cookie）
 function buildIwaraHeaders(host, start) {
   const headers = {
-    "User-Agent": api.DEFAULT_UA,
+    "User-Agent": api.effectiveUA(),
     Accept: "*/*",
     Referer: "https://www.iwara.tv/",
     Range: `bytes=${start}-`
@@ -554,7 +554,7 @@ async function aria2Add(item) {
   options["disable-ipv6"] = "true";
   // 关键：aria2 默认 UA 是 aria2/1.37.0，Cloudflare 会 403 拦截；
   // 必须带精简浏览器 UA（NO_AWK 版，与 direct 后端一致）才能过 CF
-  const headers = [`User-Agent: ${api.DEFAULT_UA}`];
+  const headers = [`User-Agent: ${api.effectiveUA()}`];
   // 只传含 cf_clearance 的 Cookie；过期/deleted 的 _ga 会让 CF 直接 403
   if (c.iwaraCookie && /cf_clearance=/.test(c.iwaraCookie) && !/deleted/i.test(c.iwaraCookie)) {
     headers.push(`Cookie: ${c.iwaraCookie}`);
