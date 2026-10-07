@@ -115,6 +115,25 @@ function nextCdnUrlFor(url, currentHost) {
   return String(url).replace("://" + host + "/", "://" + next + "/").replace("://" + host + ":", "://" + next + ":");
 }
 
+/** aria2 任务失败后的统一处置（轮询路径与 WebSocket 路径共用，避免两条路各写一份）：
+ *  当前子域记 BAD → 换下一个候选子域、清 gid 回 pending 重投。
+ *  返回 true 表示已换子域重试（调用方应直接 return，不要再判 failed）。 */
+function retryWithNextCdn(item, errMsg, source) {
+  const host = hostOfUrl(item.url);
+  const nextUrl = nextCdnUrlFor(item.url, host);
+  if (host) cdnMarkFail(host);
+  if (nextUrl && task.status === "running") {
+    console.log(`[downloader] aria2(${source}) ${host} → ${String(errMsg || "").slice(0, 60)}，换子域重试：${hostOfUrl(nextUrl)}`);
+    item.url = nextUrl;
+    item.aria2Gid = "";
+    item.error = "";
+    item.state = "pending";
+    saveTask();
+    return true;
+  }
+  return false;
+}
+
 // keep-alive 连接池（避免每文件吃一次慢首连接）
 const HTTPS_AGENT = new https.Agent({ keepAlive: true, keepAliveMsecs: 60000, maxSockets: 64, maxFreeSockets: 32 });
 
@@ -646,20 +665,8 @@ function applyAria2Status(item, st) {
     if (isAria2Duplicate(st.errorCode, st.errorMessage)) {
       markSkipped(item, "Aria2 重复（" + String(st.errorCode || "") + "）");
     } else {
-      // 失败（CF 403 / 超时 / "Network is unreachable" 等）→ 当前子域记 BAD，换下一个候选子域重试。
-      // 与 direct 后端的 attemptIwaraUrl 同一套轮转：异常子域不再对着同一个地址反复重试。
-      const host = hostOfUrl(item.url);
-      const nextUrl = nextCdnUrlFor(item.url, host);
-      if (host) cdnMarkFail(host);
-      if (nextUrl && task.status === "running") {
-        console.log(`[downloader] aria2 ${host} → ${String(st.errorMessage || "").slice(0, 60)}，换子域重试：${hostOfUrl(nextUrl)}`);
-        item.url = nextUrl;
-        item.aria2Gid = "";
-        item.error = "";
-        item.state = "pending";
-        saveTask();
-        return;
-      }
+      // 失败（CF 403 / 超时 / "Network is unreachable" 等）→ 记 BAD + 换下一个候选子域重试（与 WS 路径共用处置）
+      if (retryWithNextCdn(item, st.errorMessage, "poll")) return;
       item.state = "failed";
       item.error = st.errorMessage || "aria2 error";
     }
@@ -736,6 +743,14 @@ function ensureAria2Monitor() {
       saveTask();
       maybeFinishAria2Task();
     } else if (method === "aria2.onDownloadError") {
+      // 与轮询路径同一套处置：先记 BAD + 换下一个候选子域（同步决定），换不了才判失败并异步补真实错误。
+      // 【为什么】原实现直接置 failed，既不记 BAD 也不换子域 —— 异常子域（如解析出假 AAAA 的）会被反复重试。
+      if (retryWithNextCdn(item, item.error || "aria2 onDownloadError", "ws")) {
+        aria2Rpc("aria2.tellStatus", [gid, ["errorMessage"]]).then((st) => {
+          if (st && st.errorMessage) console.log("[downloader] aria2 ws 失败详情：" + String(st.errorMessage).slice(0, 90));
+        }).catch(() => null);
+        return;
+      }
       item.state = "failed";
       item.error = "aria2 onDownloadError";
       aria2Rpc("aria2.tellStatus", [gid, ["errorMessage", "status"]]).then((st) => {
