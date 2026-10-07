@@ -33,7 +33,8 @@ module.exports = function register(api) {
     const next = {
       enabled: body.enabled !== undefined ? !!body.enabled : cur.enabled,
       mode: body.mode || cur.mode || "watch",
-      interval: body.interval ? parseInt(body.interval, 10) : (cur.interval || 300)
+      // 缺省 3600 秒（1 小时）：github 模式每次检查要打一次 GitHub API，而多数项目每天推送不足 3 次
+      interval: body.interval ? parseInt(body.interval, 10) : (cur.interval || 3600)
     };
     // github 模式字段仅从配置文件继承（前端不提交，也不允许通过 body 覆盖）
     for (const k of ["githubRepo", "githubBranch", "githubToken"]) {

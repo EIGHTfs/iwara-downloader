@@ -1,20 +1,29 @@
 <div class="card">
         <h2>🔄 自动更新</h2>
-        <p class="hint">服务端代码自动更新 + 优雅重启。开发机推送代码后，服务端自动拉取并重启，无需手动同步。watch 模式监控文件变更；git 模式定时 git pull；github 模式定时从 GitHub 拉取（服务端不需要 .git）。github 模式的仓库/分支/Token 在 <code>server/config.json</code> 手改（<code>githubRepo</code> / <code>githubBranch</code> / <code>githubToken</code>；Token 仅私有仓库需要）。</p>
+        <p class="hint">
+          服务端代码自动更新 + 优雅重启：开发机推送代码后，服务端自动拉取并重启，无需手动同步。<br>
+          <b>三种模式的区别</b>：<br>
+          · <b>文件监控（watch）</b>—— 监控本机 <code>server/</code> 目录的文件变更，改完即重启；<b>不轮询、不联网、无间隔</b>，适合直接在本机改代码。<br>
+          · <b>定时 git pull</b>—— 需本机有 <code>.git</code> 与远端拉取权限，按间隔执行 <code>git pull</code>，有变更才重启（本地命令，成本低）。<br>
+          · <b>定时查 GitHub</b>—— 本机<b>不需要</b> <code>.git</code>，按间隔调 GitHub API 比对远端提交，有新提交才拉取（每次检查消耗 1 次 API 配额）。<br>
+          <b>间隔</b>仅对后两种模式生效，默认 <b>3600 秒（1 小时）</b>；连续失败会按该值的 <b>2 倍逐级退避、最多 3 次</b>（1h→2h→4h→8h），任意一次成功立即恢复。想马上生效请用「🔍 立即检查」（手动检查不计入失败连击）。<br>
+          github 模式的仓库/分支/Token 在 <code>server/config.json</code> 手改（<code>githubRepo</code> / <code>githubBranch</code> / <code>githubToken</code>；Token 仅私有仓库需要）。
+        </p>
         <div class="row">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
             <input type="checkbox" id="autoUpdateToggle">
             <span>启用自动更新</span>
           </label>
           <label>模式
-            <select id="autoUpdateMode">
-              <option value="watch">文件监控（watch）</option>
-              <option value="git">定时 git pull</option>
-              <option value="github">从 GitHub 拉取（无需 .git）</option>
+            <select id="autoUpdateMode" title="三种模式的触发方式与代价不同，详见上方说明">
+              <option value="watch">文件监控（watch）— 改本机文件即重启｜不轮询·不联网·无间隔</option>
+              <option value="git">定时 git pull — 需本机 .git 与拉取权限｜本地命令，成本低（默认 300 秒）</option>
+              <option value="github">定时查 GitHub — 无需 .git｜每次打 1 次 GitHub API（默认 3600 秒）</option>
             </select>
           </label>
           <label id="autoUpdateIntervalRow" style="display:none">间隔（秒）
-            <input type="number" id="autoUpdateInterval" value="300" min="30" max="3600" style="width:90px">
+            <input type="number" id="autoUpdateInterval" value="3600" min="30" max="86400" style="width:90px"
+                   title="默认 3600（1 小时）。连续失败会按此值的 2 倍逐级退避、最多 3 次；一次成功即恢复。想立刻生效用「🔍 立即检查」">
           </label>
         </div>
         <div class="row mt">
