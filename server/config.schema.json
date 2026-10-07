@@ -5,6 +5,7 @@
   "iwaraCookie": { "type": "string", "default": "" },
   "iwaraAccessToken": { "type": "string", "default": "" },
   "iwaraCfgIp": { "type": "string", "default": "" },
+  "iwaraUA": { "type": "string", "default": "" },
   "aria2Dns": { "type": "string", "default": "" },
   "downloadBackend": { "type": "string", "default": "direct" },
   "concurrency": { "type": "number", "default": 4 },

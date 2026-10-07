@@ -78,10 +78,19 @@ function cookieForRequest(raw) {
   }).join("; ");
 }
 
+/** 生效 UA：优先用「用户浏览器回传的 UA」（配置 iwaraUA），未配置时回退内置精简 UA。
+ *  为什么必须可配：Cloudflare 的 cf_clearance 与**生成它的那个浏览器的 UA** 绑定——
+ *  浏览器能过挑战、服务端拿同一 cookie 却吃 403，差别就在 UA（历史上「精简 UA 更稳」
+ *  只适用于不需要 cf_clearance 的阶段；现在 CF 强制挑战，UA 必须与浏览器一致）。 */
+function effectiveUA() {
+  const ua = String(cfg.readConfig().iwaraUA || "").trim();
+  return ua || DEFAULT_UA;
+}
+
 function configHeaders(urlString, withAuth) {
   const c = cfg.readConfig();
   const headers = {
-    "User-Agent": DEFAULT_UA,
+    "User-Agent": effectiveUA(),
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     "Referer": "https://www.iwara.tv/",
@@ -578,7 +587,7 @@ function fetchCdnImage(pathname) {
       port: 443,
       path: u.pathname,
       method: "GET",
-      headers: { Host: u.hostname, "User-Agent": DEFAULT_UA, Referer: "https://www.iwara.tv/", Accept: "image/*,*/*" },
+      headers: { Host: u.hostname, "User-Agent": effectiveUA(), Referer: "https://www.iwara.tv/", Accept: "image/*,*/*" },
       agent: HTTPS_AGENT,
       servername: u.hostname
     }, (res) => {
@@ -614,7 +623,7 @@ function fetchOneThumbnail(fileId, name) {
       port: 443,
       path: u.pathname,
       method: "GET",
-      headers: { Host: u.hostname, "User-Agent": DEFAULT_UA, Referer: "https://www.iwara.tv/", Accept: "image/*,*/*" },
+      headers: { Host: u.hostname, "User-Agent": effectiveUA(), Referer: "https://www.iwara.tv/", Accept: "image/*,*/*" },
       agent: HTTPS_AGENT,
       servername: u.hostname
     }, (res) => {
@@ -933,7 +942,7 @@ async function getVideoState(id) {
   };
 }
 
-module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, unfollowUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp,
+module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, unfollowUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, effectiveUA, getCfIp,
   // 下划线前缀 = 测试专用内部导出（供 test/verify-api-http-guard.cjs 直接驱动真实实现，
   // 而非在测试里复制一份逻辑；业务代码不要引用这两个名字）。
   _httpsJson: httpsJson, _cookieForRequest: cookieForRequest };

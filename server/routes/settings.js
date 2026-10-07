@@ -34,7 +34,7 @@ module.exports = function register(api) {
         if (parsed.accessToken) body.iwaraAccessToken = parsed.accessToken;
       }
     }
-    const allowed = ["iwaraCookie", "iwaraToken", "iwaraAccessToken", "downloadBackend", "concurrency", "aria2Path", "aria2Token", "downloadPath", "fileNameTemplate", "showLikedInSearch", "autoLike", "autoFollow", "sessionHours", "port", "checkDownloadLink", "iwaraCfgIp", "aria2Dns", "downloadToggles", "playPublic"];
+    const allowed = ["iwaraCookie", "iwaraToken", "iwaraAccessToken", "iwaraUA", "downloadBackend", "concurrency", "aria2Path", "aria2Token", "downloadPath", "fileNameTemplate", "showLikedInSearch", "autoLike", "autoFollow", "sessionHours", "port", "checkDownloadLink", "iwaraCfgIp", "aria2Dns", "downloadToggles", "playPublic"];
     const oldDownloadPath = c.downloadPath;
     for (const k of allowed) {
       if (body[k] === undefined) continue;
