@@ -355,6 +355,21 @@
     }
     function srvInput() { return panelEl ? panelEl.querySelector("#iwcred-server") : null; }
 
+    /** 秒/毫秒时间戳归一化为毫秒（各项目到期时间格式不一，统一成毫秒）。 */
+    function toMs(n) {
+        n = Number(n) || 0;
+        if (n <= 0) return 0;
+        return n < 1e12 ? n * 1000 : n;
+    }
+
+    /** 解析 JWT 的 exp（毫秒）；非 JWT 或解析失败返回 0（不用 JWT 的项目自然得 0）。 */
+    function jwtExpMs(token) {
+        try {
+            const p = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+            return p && p.exp ? p.exp * 1000 : 0;
+        } catch (_) { return 0; }
+    }
+
     /** 会话串 → 请求头。会话串已是完整 name=value（gmRequest 解析 Set-Cookie 时连 cookie 名一起取），
      *  直接用作 Cookie 头——不再拼 "session="，否则会话名带项目前缀（如 gbmd_session）时服务端认不出。 */
     function sessionHeaders(session) {
@@ -645,18 +660,7 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         m.style.top = top + "px";
     }
 
-    function jwtExpMs(token) {
-        try {
-            const p = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-            return p && p.exp ? p.exp * 1000 : 0;
-        } catch (_) { return 0; }
-    }
 
-    function toMs(n) {
-        n = Number(n) || 0;
-        if (n <= 0) return 0;
-        return n < 1e12 ? n * 1000 : n;
-    }
 
     function cacheGet(key) {
         try { return GM_getValue(key, null) || null; } catch (_) { return null; }
