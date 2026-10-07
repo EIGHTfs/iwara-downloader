@@ -241,6 +241,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.25（未升版） | **同步模板：自动更新间隔治理 + 失败退避** —— `github` 模式默认间隔 300 → **3600 秒（1 小时）**；连续失败按设定值 ×2 退避（最多 3 次：1h→2h→4h→8h，成功后立即复位）；三种模式的区别写进前端下拉与卡片说明；间隔统一钳制到 `[30, 86400]`。验证脚本 `test/auto-update-interval.test.cjs`（13 项）+ `test/auto-update-backoff.test.cjs`（10 项）全通过 |
 | 1.7.24（未升版） | **同步模板：自动更新不再排除 `server/boot.cjs`** —— 使该文件的进程级异常兜底（`uncaughtException` / `unhandledRejection`）能经自动更新下发（此前实测被 `跳过(排除)` 拦住）。部署端已确认 `server/boot.cjs` 含兜底、`server/update/auto-update.js` 的排除数归 0 |
 | 1.7.23（未升版） | **内核补齐 `toMs()` / `jwtExpMs()` 后重新生成脚本**：这两个工具函数原本只在本项目片段里定义，却被模板内核 `readCookieGM` 调用——gbmd 接入时直接 `ReferenceError: jwtExpMs is not defined`。已上提到 `templates/userscript/cookie-fetch/20-core.js` 并从本项目片段删除重复定义，`scripts/iwara-cred-fetch.user.js` 相应重新生成。验证：端到端回归 5/5（退出码 0） |
 | 1.7.22（未升版） | **钩子名统一 + 端到端测试参数化**：①面板打开统一为钩子名 `openPanel`（原 `showPanel` 与 gbmd 的 `openPanel` 不一致，模板/内核调用它会导致另一项目 ReferenceError）；②`sessionHeaders()` 上提到模板内核（原在 iwara 侧，却被内核 `fetchServerCreds` 调用，别的项目接入即报未定义）；③模板图标改走配置占位符 `{{ICON}}`（原误用 iwara 常量 `IWARA_ICON`）；④`test/verify-userscript-panel.cjs` 参数化（`US_SERVER`/`US_SITE_URL`/`US_IDP`/`US_USERSCRIPT`），同一份测试可测 iwara 与 gbmd。验证：产物 `node --check`、端到端回归 **5/5**（退出码 0，面板仍渲染「✅ 已登录（剩 29 天）」） |

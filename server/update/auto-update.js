@@ -124,6 +124,34 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
   // github 模式状态文件（记录上次应用的 commit sha，不入库）
   const STATE_FILE = path.join(ROOT_DIR, ".auto-update-state.json");
 
+  // ── 间隔与失败退避（2026-10-08）──────────────────────────────
+  // 各模式默认间隔（秒）。watch 是文件事件驱动，不需要间隔 → null；
+  // git 是本地 git pull（成本极低）→ 300；github 每次要打一次 GitHub API（有配额），
+  // 而绝大多数项目每天推送不超过 3 次、5 分钟一轮 99% 是白跑 → 默认 1 小时（3600）。
+  const DEFAULT_INTERVAL_SEC = { watch: null, git: 300, github: 3600 };
+  const INTERVAL_MIN_SEC = 30;      // 下限：防止误填 1 秒把 GitHub 打爆
+  const INTERVAL_MAX_SEC = 86400;   // 上限：1 天
+  const BACKOFF_MAX_STEPS = 3;      // 连续失败最多回避 3 次（1h→2h→4h→8h，之后维持 8h）
+
+  /** 规范检查间隔：缺省/非法 → 取该模式默认值；有效值夹到 [INTERVAL_MIN_SEC, INTERVAL_MAX_SEC] */
+  function normInterval(cfg, mode) {
+    const def = DEFAULT_INTERVAL_SEC[mode];
+    if (def === null) return null;                       // watch：不需要间隔
+    const raw = cfg ? cfg.interval : undefined;
+    if (raw === undefined || raw === null || raw === "" || isNaN(Number(raw))) return def;
+    return Math.min(Math.max(Math.floor(Number(raw)), INTERVAL_MIN_SEC), INTERVAL_MAX_SEC);
+  }
+
+  /**
+   * 连续失败时的实际间隔（毫秒）= 设定值 × 2^min(连续失败次数, BACKOFF_MAX_STEPS)。
+   * 以 base=3600s 为例：失败 1 次→7200s、2 次→14400s、3 次→28800s，之后维持 28800s；
+   * 任意一次成功即把失败连击归零、立即回到 base。手动「立即检查」不计入连击。
+   */
+  function intervalMsWithBackoff(baseSec, failStreak) {
+    const steps = Math.min(Math.max(failStreak, 0), BACKOFF_MAX_STEPS);
+    return baseSec * Math.pow(2, steps) * 1000;
+  }
+
   // github 模式下禁止覆盖的运行态/敏感文件（相对项目根，前缀或精确匹配）
   // 排除规则分三类（isExcluded 按类匹配，避免「以 . 开头一律当后缀」的误判）：
   const GITHUB_EXCLUDE = [
@@ -200,15 +228,16 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     } else {
       startFileWatch();
     }
-    return { enabled: true, mode, interval: cfg.interval || (mode !== "watch" ? 300 : null) };
+    return { enabled: true, mode, interval: normInterval(cfg, mode) };
   }
 
   /** 停止监控 */
   function stop() {
     if (watcher) { try { watcher.close(); } catch (_) {} watcher = null; }
     if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
-    if (gitInterval) { clearInterval(gitInterval); gitInterval = null; }
-    if (githubInterval) { clearInterval(githubInterval); githubInterval = null; }
+    // 两者现在都是「递归 setTimeout」的句柄（退避要动态间隔，setInterval 固定间隔做不到）
+    if (gitInterval) { clearTimeout(gitInterval); gitInterval = null; }
+    if (githubInterval) { clearTimeout(githubInterval); githubInterval = null; }
     restarting = false;
   }
 
@@ -289,11 +318,22 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     } catch (_) { /* 目录不存在 */ }
   }
 
-  /** git 模式：定时 git pull → 有变更则重启 */
+  /** git 模式：定时 git pull → 有变更则重启（连续失败按设定值 ×2 退避，最多 3 次） */
   function startGitWatch(cfg) {
-    const intervalMin = cfg.interval || 300; // 秒
-    const doGitPull = () => {
-      if (restarting) return;
+    const baseSec = normInterval(cfg, "git");
+    let failStreak = 0;
+
+    /** 用递归 setTimeout 排下一轮（setInterval 间隔固定，承载不了动态退避） */
+    function scheduleNext() {
+      if (gitInterval) { clearTimeout(gitInterval); gitInterval = null; }
+      const delay = intervalMsWithBackoff(baseSec, failStreak);
+      if (failStreak > 0) _log(`git 检查连续失败 ${failStreak} 次，${Math.round(delay / 1000)}s 后再试`);
+      gitInterval = setTimeout(doGitPull, delay);
+    }
+
+    function doGitPull() {
+      if (restarting) { scheduleNext(); return; }   // 重启中不计失败，按当前档位排下一轮
+      let failed = false;
       try {
         const before = execSync("git rev-parse HEAD", { cwd: ROOT_DIR, timeout: 5000 }).toString().trim();
         execSync("git pull --ff-only", { cwd: ROOT_DIR, timeout: 30000 });
@@ -303,20 +343,42 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
           scheduleRestart();
         }
       } catch (e) {
+        failed = true;
         _log("git pull 失败: " + (e.message || String(e)).slice(0, 100));
       }
-    };
-    // 首次立即执行
-    doGitPull();
-    gitInterval = setInterval(doGitPull, intervalMin * 1000);
+      failStreak = failed ? failStreak + 1 : 0;      // 成功即归零，立即回到基础间隔
+      scheduleNext();
+    }
+
+    doGitPull(); // 首次立即执行
   }
 
-  /** github 模式：定时检查 GitHub 更新 */
+  /** github 模式：定时检查 GitHub 更新（连续失败按设定值 ×2 退避，最多 3 次） */
   function startGitHubWatch(cfg) {
-    const intervalSec = cfg.interval || 300;
-    const doCheck = () => { checkGitHubUpdate(cfg); };
+    const baseSec = normInterval(cfg, "github");
+    let failStreak = 0;
+
+    /** 用递归 setTimeout 排下一轮（退避要动态间隔，setInterval 固定间隔做不到） */
+    function scheduleNext() {
+      if (githubInterval) { clearTimeout(githubInterval); githubInterval = null; }
+      const delay = intervalMsWithBackoff(baseSec, failStreak);
+      if (failStreak > 0) _log(`github 检查连续失败 ${failStreak} 次，${Math.round(delay / 1000)}s 后再试`);
+      githubInterval = setTimeout(doCheck, delay);
+    }
+
+    function doCheck() {
+      const settle = () => {
+        const r = (lastCheck && lastCheck.result) || "error";
+        if (r === "error") failStreak += 1;                        // 失败 → 下一轮翻倍退避
+        else if (r !== "skip" && r !== "baseline") failStreak = 0;  // 成功 → 立即回到基础间隔
+        scheduleNext();
+      };
+      const p = checkGitHubUpdate(cfg);
+      if (p && typeof p.then === "function") p.then(settle, settle);
+      else settle();   // 同步返回的分支（重启中 / 未配置 githubRepo）
+    }
+
     doCheck(); // 首次立即检查
-    githubInterval = setInterval(doCheck, intervalSec * 1000);
   }
 
   /** 检查一次 GitHub 更新（可被 /api/auto-update/check 手动触发，结果记录到 lastCheck） */
@@ -336,7 +398,9 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     }
     _log(`github 模式检查更新: ${repo}@${branch}`);
     const state = readState();
-    getGitHubLatest(repo, branch, token).then((latest) => {
+    // 返回这个 Promise：定时调度器要等异步链路落定后才统计成功/失败（退避依据）；
+    // 手动触发路径（路由）仍按 lastCheck 轮询取结果，故此改动对既有调用方透明。
+    return getGitHubLatest(repo, branch, token).then((latest) => {
       if (!latest || !latest.sha) {
         lastCheck = { time: Date.now(), result: "error", message: "查询 GitHub 失败（无返回）" };
         return;
@@ -727,7 +791,11 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
   return {
     start, stop, getStatus, scheduleRestart, doRestart, setShutdownHook,
     checkGitHubUpdate, getGitHubRefSha, getGitHubLatest,
-    applyGitHubUpdate, isExcluded, copyTreeSafe
+    applyGitHubUpdate, isExcluded, copyTreeSafe,
+    // 间隔与退避（纯函数，无副作用）—— 导出给 test/ 直接验证，
+    // 避免测试为了取值去真的启动监控（那会触发 git pull / GitHub 请求）
+    normInterval, intervalMsWithBackoff,
+    DEFAULT_INTERVAL_SEC, INTERVAL_MIN_SEC, INTERVAL_MAX_SEC, BACKOFF_MAX_STEPS
   };
 }
 

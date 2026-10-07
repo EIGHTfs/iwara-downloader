@@ -106,7 +106,9 @@
     "templates/_downloader/_iwara/html/scripts-extra.html": "server/public/fragments/scripts-extra.html",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js",
     "templates/js/config/brand.js": "server/config/brand.js",
-    "templates/_downloader/html/tab-panel/panel-settings/": "server/public/fragments/tab-panel/panel-settings/"
+    "templates/_downloader/html/tab-panel/panel-settings/": "server/public/fragments/tab-panel/panel-settings/",
+    "templates/_downloader/test/auto-update-interval.test.cjs": "test/auto-update-interval.test.cjs",
+    "templates/_downloader/test/auto-update-backoff.test.cjs": "test/auto-update-backoff.test.cjs"
   },
   "init": false
 }
