@@ -100,6 +100,21 @@ function cdnMarkFail(host) {
   cdnSaveState();
 }
 
+/** 取 URL 的 hostname（换子域用；解析失败给空串） */
+function hostOfUrl(u) {
+  try { return new URL(String(u)).hostname; } catch (_) { return ""; }
+}
+
+/** 把 URL 换成「下一个可用候选子域」的 URL：候选表已排除 BAD 子域，取第一个不同于当前 host 的；
+ *  没有可换的返回空串（调用方据此判定彻底失败）。aria2 后端同样复用它做轮转。 */
+function nextCdnUrlFor(url, currentHost) {
+  const host = currentHost || hostOfUrl(url);
+  if (!host) return "";
+  const next = cdnCandidates(host).find((h) => h !== host);
+  if (!next) return "";
+  return String(url).replace("://" + host + "/", "://" + next + "/").replace("://" + host + ":", "://" + next + ":");
+}
+
 // keep-alive 连接池（避免每文件吃一次慢首连接）
 const HTTPS_AGENT = new https.Agent({ keepAlive: true, keepAliveMsecs: 60000, maxSockets: 64, maxFreeSockets: 32 });
 
@@ -542,15 +557,42 @@ function localFileExists(savePath) {
   }
 }
 
+/** 检查/尝试让 aria2 禁用 IPv6（只做一次）。
+ *  实测结论（2026-10-08，DSM Aria2 套件）：disable-ipv6 是 aria2 的**启动时**选项——
+ *    · addUri 的 per-download options 里传它 → 忽略；
+ *    · changeGlobalOption 里传它 → 返回 "OK" 但 getGlobalOption 复查仍是 "false"（静默忽略）。
+ *  所以这里只能「尝试 + 复查 + 明确指路」，不能假装生效：真正生效要在 aria2.conf 写
+ *  disable-ipv6=true 并重启 aria2。本机 IPv6 不通，DNS 被污染时还会返回 2001::/32（Teredo 段）
+ *  的假 AAAA → "Failed to connect to the host 2001::xxxx, cause: Network is unreachable"。
+ *  兜底：aria2 任务失败时换下一个候选子域重试并记 BAD（见状态 error 分支），具体子域被污染不影响整体。 */
+let aria2Ipv6Checked = false;
+async function ensureAria2NoIpv6() {
+  if (aria2Ipv6Checked) return;
+  aria2Ipv6Checked = true;
+  try {
+    await aria2Rpc("aria2.changeGlobalOption", [{ "disable-ipv6": "true" }]);
+    const opt = await aria2Rpc("aria2.getGlobalOption", []);
+    if (String((opt || {})["disable-ipv6"] || "") === "true") {
+      console.log("[downloader] aria2 已禁用 IPv6（disable-ipv6=true）");
+    } else {
+      console.log("[downloader] ⚠️ aria2 仍在用 IPv6：disable-ipv6 是启动时选项，运行时改不动（per-download / changeGlobalOption 均被忽略）→ 请在 aria2 配置里写 disable-ipv6=true 并重启 aria2；在此之前异常子域由「失败换子域重试 + BAD 表」兜底");
+    }
+  } catch (e) {
+    console.log("[downloader] aria2 IPv6 检查失败：" + String(e && e.message || e));
+  }
+}
+
 /** aria2 后端：addUri 推送（支持 http/https；DSM 自签名证书忽略校验） */
 async function aria2Add(item) {
+  await ensureAria2NoIpv6();
   const c = cfg.readConfig();
   const options = aria2DirOptions(c, item.file, await deviceCheck.aria2SameDevice(c.aria2Path) === true);
   options["max-connection-per-server"] = "4";
   options.split = "4";
   options["allow-overwrite"] = "false";
-  // 2026-09-04：禁 IPv6。失败原因：Failed to connect to the host 2001::a27d:108 Network is unreachable。
-  // 【思路】群晖 aria2 会解析出 AAAA，本机 IPv6 不通；强制 IPv4。
+  // 2026-09-04：尝试禁 IPv6（当时现象：Failed to connect to the host 2001::a27d:108 Network is unreachable）。
+  // 【2026-10-08 实测更正】disable-ipv6 是 aria2 的启动时选项，per-download options 会被**静默忽略**——
+  // 留着只为兼容旧行为；真正生效需在 aria2 配置里写 disable-ipv6=true 并重启（见 ensureAria2NoIpv6 的复查与提示）。
   options["disable-ipv6"] = "true";
   // 关键：aria2 默认 UA 是 aria2/1.37.0，Cloudflare 会 403 拦截；
   // 必须带精简浏览器 UA（NO_AWK 版，与 direct 后端一致）才能过 CF
@@ -604,6 +646,20 @@ function applyAria2Status(item, st) {
     if (isAria2Duplicate(st.errorCode, st.errorMessage)) {
       markSkipped(item, "Aria2 重复（" + String(st.errorCode || "") + "）");
     } else {
+      // 失败（CF 403 / 超时 / "Network is unreachable" 等）→ 当前子域记 BAD，换下一个候选子域重试。
+      // 与 direct 后端的 attemptIwaraUrl 同一套轮转：异常子域不再对着同一个地址反复重试。
+      const host = hostOfUrl(item.url);
+      const nextUrl = nextCdnUrlFor(item.url, host);
+      if (host) cdnMarkFail(host);
+      if (nextUrl && task.status === "running") {
+        console.log(`[downloader] aria2 ${host} → ${String(st.errorMessage || "").slice(0, 60)}，换子域重试：${hostOfUrl(nextUrl)}`);
+        item.url = nextUrl;
+        item.aria2Gid = "";
+        item.error = "";
+        item.state = "pending";
+        saveTask();
+        return;
+      }
       item.state = "failed";
       item.error = st.errorMessage || "aria2 error";
     }
