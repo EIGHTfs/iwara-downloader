@@ -134,7 +134,10 @@ function createAutoUpdate(opts) { // dsh-skip-func-length 既有超长工厂函�
     "start-linux.sh",
     "start-macos.sh",
     "start-windows.bat",
-    "server/boot.cjs",
+    // server/boot.cjs 原也在此列（怕被远端旧版覆盖导致起不来）。2026-10-08 移出：
+    // 它是零依赖启动器，权威源在本模板（清单 src → server/boot.cjs），继续排除会让它的修复
+    // （进程级 uncaughtException/unhandledRejection 兜底）永远进不到部署端。
+    // 安全性：更新是「先落盘校验 → 再重启」，boot.cjs 在重启时才被加载，写坏也只会落到下一轮。
     "server/setup.sh",
     // 运行态索引/任务/会话
     "json/index",
