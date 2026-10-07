@@ -21,6 +21,62 @@
 // ==/UserScript==
 
 /* ============================================================
+ * 本文件由模板组装生成，请勿手改。
+ *   模板: templates/userscript/cookie-fetch/
+ *   项目: templates/_downloader/_iwara/userscript/
+ *   组装: node scripts/build-userscript.js <项目目录> <输出>
+ * ============================================================ */
+(function () { // dsh-skip-func-length 油猴脚本标准 IIFE 包裹（模板组装，全脚本一体，不可按行拆分）
+    "use strict";
+
+    // ---- 项目配置（来自 00-config.json；命名带前缀避免与脚本自有 CFG 冲突）----
+    const __US_CFG = {
+    "templateDir": "templates/userscript/cookie-fetch",
+    "name": "Iwara 下载助手（Cookie + 一键发送到服务器）",
+    "namespace": "iwara-cred",
+    "version": "7.7.2",
+    "description": "SPA 换页不重载；视频链接右键/长按发送到服务器。",
+    "author": "EIGHTfs",
+    "match": [
+        "https://www.iwara.tv/*",
+        "https://iwara.tv/*",
+        "https://ecchi.iwara.tv/*"
+    ],
+    "IDP": "iwcred-",
+    "IDP_BARE": "iwcred",
+    "STORE_PREFIX": "iwcred:",
+    "LOG_TAG": "iwara-cred",
+    "SITE_DOMAIN": "iwara.tv",
+    "SITE_NAME": "Iwara",
+    "NOTIFY_TITLE": "Iwara 凭证",
+    "ICON": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJLUlEQVR4nOVbe0xU2R0+d+YOr2EcgXVEGgSXBB8loEkLSjemCAmpFrWxQVZKzBITI5XQRhvcSLYibISI1RIRJdIQKwSfILgJhQ1KAIsPIA0gAVERFSWABBUZ5nFP/6Afno7M3HvlNbDfX2TOvef+vu98v/OGkFkAx3Gz8Rn7BMgrlcqfnhAgvGTJEgV+UyqVcxbPrEKhGOe8Zs0ax76+vrbjx4//VqPRcISMi4DyBQmO44hSqSRKpZI0NDTk0/+ho6PjX9u3b1+G53ien8swZw4glpKS8hWllBqNxlGj0TgKIYqLi5NWrFjBE/JRrAUDkFm3bp2zwWAYMZlMY4IgmCml1Gw2G81ms5FSSt+8efMkKSlpLVJhQYiA1lSpVKS5ubmYUkpNJtMYtQD7W319/dkNGzZoCFkAIsD66enpEbC+JXlAEAQzygVBMCckJASgjnk5XKL1QkJCXE0m0xhrfVswmUxjSIvk5OT1hMxDEWB9Jycn0tbWVoZ8FyPPugFpkZ6eHkHIPJs4wfpZWVlRYtaXkhKnTp36HSHjcwm7FwHW37hxoxYtKcX61gAR8vPzvyFk3F12O2mC9V1cXEhnZ2clpfKsLybCpUuX/gR32aUICO706dPRbODTAYPBMEIppTdv3vyrs7MzIcTORID1IyIi3KdC3la6QIRbt26d1Gq1HPvdOQXyctGiRVx3d3e9IAhmudZnidt6F8Leu3evAKvKORcB1j9//vxuNkipwPNxcXFfHjx48JdidaCspaWlxNvbW8nGMOuA+lu2bNFNhfzZs2djUeexY8cipYrQ1dVV7e/v7zAnIigUCqJQKIi7uzv34sWLB3Ktj8lOQ0NDvkqlIjzPT5A4ceLEVqkivHz5sikoKMh51kXAxy5evLiPJWQLmBuYzWajIAjm/v7+Dh8fHx6CssthjCbo/GyJODAw0IlF1KyIgCB37NjxM7GWshV4ZGTkF2x9hPz/nkBeXl6cWP2o6927d68jIiLcCSFEpVLNHHlYX6fTKfr6+trYdb2tlqeU0levXv2nsrIyg1JKDx8+/CtCJm8xVoSCgoI9Yk7A9/V6/fC2bds8Z1QEBHzlypUDbAvYAgJsb2//gRBCgoOD1SqVyuYQxk57i4qK9ksVwWw2G2NjY33ZWKcNCHjXrl2+lEq3PoLr7OysdHJyIh4eHhOrGlvLXYjAcRy5du3aX6SIALft3bt3zbSKgEC8vLyUg4ODXVKsbxnY48ePb/M8T9ra2soKCgr2+Pr6TkRnTQiIwPM8KS8v/05MeHY0OnDgwC/ERJYMKFlWVpZCqTTrAwh49+7dfoQQ0t7e/gOllA4NDXWnpaWFs46YLC0gvoODA6moqPheigiI78iRI79GvZ8tAoKKj4/3F/u4NfLZ2dm/B5nW1tZSVsDnz5/fS0xMDHJ0dCSETL47jP7A2dmZVFdX/02KCCjPysqKYoWUBbzk4+PDDw8Pv2DzTAwgWVtbm4OzAY7jSGtraynKWRItLS0lMTExy9lvs6s+/O3q6srV1dXlSmkMlJ87d+4Pk9UpufUxfEm1PvLw9evXLV5eXkqWAATAM6xlKaW0pqYmOzw83B0xsK2GOrRaLXf37t1/sPWIiVBYWPhHvC/JCSC/b9++n0tRG0BHZDAYRkCE7Y0tBWBFY4W4fPnynwMDA50sA0ZcHh4e3P379y9ImYZj9Lh+/XqyRqPhRNMBhTqdTjE6OjokZ3sLQqWlpYUT8umkxJoA7PvscBcXF/el5XYY6ly1apWDXq8fljIijY6ODlFKaUFBwR5WSJsO4HmeXLhwYS+l8uwvCIK5sbGxcPHixZxl3lkTgO24KKW0qampKDo62luj0XDW0qC2tjZHigPYZfTq1asdOY4TTwM8oNVquZ6engY5Kz6IVVJScogQ2ylgSfzZs2f/TkhICHBwcPgkJpB3cXEhNTU12ZMJaY18Y2Nj4dKlSxUsN1HAJpGRkV+wlUkBnk1JSfmKFYEVgHXV0NBQd2pqapibm9uk8wJ2PoBOWSwepFJdXV0u6pW9i4TAz5w5EyNHBLZlN2/evAQkMA8AeYPBMJKbm/s1lsb4JttK6AOUSqWkGSFLvrKyMkOtVn8iqGRgYqJWq8mjR49+ROtJEQH9weDgYJefn5+KEEJaWlpKUH716tWDa9eudbZGnCXPcdzEIszWmoAtLy0t/RapNKWdZPbQQ4r6LNDSt2/f/rtCoSA9PT0Nd+7cyQsLC3Nj67e2FsC3sfkilTzG/Wk7UPncYy+44OnTp7VqtZqEhoZq2LsA1oJjyWPTVYw8YsrLy4tDHdN2hoCAHB0dRcdySwEo/bgfgDm/raUqx3GfHLbYIs/2NydPntxOyAydJ6JFgoOD1VKPvlHe3d1dn5OTs7O/v78jNDTU6kUIljzcJpX8rJwoI7jU1NQw1nZy0NPT06DT6RSTWVTu5Qr0MYcOHVo/4+QJ+ZgKPM+TBw8e/JNSebvCIFRVVZWJ1kbAk12qsuYwdmKWmJgYxL4/44B1AwMDncbGxt7JPQqHCJmZmZsROIJnT4is1ckuy+Pj4/1nlTyADyYnJ69nSckVITo62ht1JiYmBkkhT+m463bu3Ll8TsgT8jEVOI4j2KCQs1UGC79//77Pz89PFRsb64s6xMjr9frhqKiopXNGHkAH5u/v7zAyMtIvNxXYMwODwTAiCILZ2vsQ9+3bt72bNm1ym3PyAILYv39/IKXyU0HqDTJKKR0cHOya1WMwqUAwVVVVmWzAckQQa/ne3t5mrBvsijwhU9s8tQW46cmTJzUrV66cm6NwqZjK9rkt8g8fPryJpbLdkgcQ4I0bNw5TKj8VLMk3NTUVeXp62sd1GClAKixbtkwxMDDQ+TmpAPL19fVn3d3d7edClFQg2JiYmOUsITEIgmDGoqeqqirT1dV1/pEHkArFxcVJlIqnAlteWlr6LZbMdnUfUA6wFe7h4cH19vY2W9tRZjdGP3z4MHj06NFNaPF5Sx4Aka1bt3papoLlVnh5efl3AQEBE6dAdn8xWiqQCvn5+d9ABNbuXV1d1VjQsM8vGFjeJAVxvV4/nJGR8Rtce5V9ajufYHmXuKKi4nt2K3xe9vJygZwOCQlxxW/z7t9hpgqQtet/fJhp/GSJzwf8F6i5FPrwWg6MAAAAAElFTkSuQmCC",
+    "VER": "7.7.2",
+    "SRV_KEY": "iwcred_server",
+    "SRV_PWD_KEY": "iwcred_server_pwd",
+    "SRV_LIST_KEY": "iwcred_server_list",
+    "COOKIE_CACHE_KEY": "iwcred_cookie_cache",
+    "USER_CACHE_KEY": "iwcred_user_cache",
+    "ACCOUNT_TTL_MS": "5 * 60 * 1000",
+    "LOGIN_WARN_DAYS": "7",
+    "SKEW_MS": "60 * 1000"
+};
+
+    "use strict";
+
+    const VER = "7.7.2";
+    const ACCOUNT_TTL_MS = 5 * 60 * 1000; // 换页不重复打 /api/account-check
+    const SRV_SESSION_KEY = "iwcred_server_session";
+    const IWARA_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAJLUlEQVR4nOVbe0xU2R0+d+YOr2EcgXVEGgSXBB8loEkLSjemCAmpFrWxQVZKzBITI5XQRhvcSLYibISI1RIRJdIQKwSfILgJhQ1KAIsPIA0gAVERFSWABBUZ5nFP/6Afno7M3HvlNbDfX2TOvef+vu98v/OGkFkAx3Gz8Rn7BMgrlcqfnhAgvGTJEgV+UyqVcxbPrEKhGOe8Zs0ax76+vrbjx4//VqPRcISMi4DyBQmO44hSqSRKpZI0NDTk0/+ho6PjX9u3b1+G53ien8swZw4glpKS8hWllBqNxlGj0TgKIYqLi5NWrFjBE/JRrAUDkFm3bp2zwWAYMZlMY4IgmCml1Gw2G81ms5FSSt+8efMkKSlpLVJhQYiA1lSpVKS5ubmYUkpNJtMYtQD7W319/dkNGzZoCFkAIsD66enpEbC+JXlAEAQzygVBMCckJASgjnk5XKL1QkJCXE0m0xhrfVswmUxjSIvk5OT1hMxDEWB9Jycn0tbWVoZ8FyPPugFpkZ6eHkHIPJs4wfpZWVlRYtaXkhKnTp36HSHjcwm7FwHW37hxoxYtKcX61gAR8vPzvyFk3F12O2mC9V1cXEhnZ2clpfKsLybCpUuX/gR32aUICO706dPRbODTAYPBMEIppTdv3vyrs7MzIcTORID1IyIi3KdC3la6QIRbt26d1Gq1HPvdOQXyctGiRVx3d3e9IAhmudZnidt6F8Leu3evAKvKORcB1j9//vxuNkipwPNxcXFfHjx48JdidaCspaWlxNvbW8nGMOuA+lu2bNFNhfzZs2djUeexY8cipYrQ1dVV7e/v7zAnIigUCqJQKIi7uzv34sWLB3Ktj8lOQ0NDvkqlIjzPT5A4ceLEVqkivHz5sikoKMh51kXAxy5evLiPJWQLmBuYzWajIAjm/v7+Dh8fHx6CssthjCbo/GyJODAw0IlF1KyIgCB37NjxM7GWshV4ZGTkF2x9hPz/nkBeXl6cWP2o6927d68jIiLcCSFEpVLNHHlYX6fTKfr6+trYdb2tlqeU0levXv2nsrIyg1JKDx8+/CtCJm8xVoSCgoI9Yk7A9/V6/fC2bds8Z1QEBHzlypUDbAvYAgJsb2//gRBCgoOD1SqVyuYQxk57i4qK9ksVwWw2G2NjY33ZWKcNCHjXrl2+lEq3PoLr7OysdHJyIh4eHhOrGlvLXYjAcRy5du3aX6SIALft3bt3zbSKgEC8vLyUg4ODXVKsbxnY48ePb/M8T9ra2soKCgr2+Pr6TkRnTQiIwPM8KS8v/05MeHY0OnDgwC/ERJYMKFlWVpZCqTTrAwh49+7dfoQQ0t7e/gOllA4NDXWnpaWFs46YLC0gvoODA6moqPheigiI78iRI79GvZ8tAoKKj4/3F/u4NfLZ2dm/B5nW1tZSVsDnz5/fS0xMDHJ0dCSETL47jP7A2dmZVFdX/02KCCjPysqKYoWUBbzk4+PDDw8Pv2DzTAwgWVtbm4OzAY7jSGtraynKWRItLS0lMTExy9lvs6s+/O3q6srV1dXlSmkMlJ87d+4Pk9UpufUxfEm1PvLw9evXLV5eXkqWAATAM6xlKaW0pqYmOzw83B0xsK2GOrRaLXf37t1/sPWIiVBYWPhHvC/JCSC/b9++n0tRG0BHZDAYRkCE7Y0tBWBFY4W4fPnynwMDA50sA0ZcHh4e3P379y9ImYZj9Lh+/XqyRqPhRNMBhTqdTjE6OjokZ3sLQqWlpYUT8umkxJoA7PvscBcXF/el5XYY6ly1apWDXq8fljIijY6ODlFKaUFBwR5WSJsO4HmeXLhwYS+l8uwvCIK5sbGxcPHixZxl3lkTgO24KKW0qampKDo62luj0XDW0qC2tjZHigPYZfTq1asdOY4TTwM8oNVquZ6engY5Kz6IVVJScogQ2ylgSfzZs2f/TkhICHBwcPgkJpB3cXEhNTU12ZMJaY18Y2Nj4dKlSxUsN1HAJpGRkV+wlUkBnk1JSfmKFYEVgHXV0NBQd2pqapibm9uk8wJ2PoBOWSwepFJdXV0u6pW9i4TAz5w5EyNHBLZlN2/evAQkMA8AeYPBMJKbm/s1lsb4JttK6AOUSqWkGSFLvrKyMkOtVn8iqGRgYqJWq8mjR49+ROtJEQH9weDgYJefn5+KEEJaWlpKUH716tWDa9eudbZGnCXPcdzEIszWmoAtLy0t/RapNKWdZPbQQ4r6LNDSt2/f/rtCoSA9PT0Nd+7cyQsLC3Nj67e2FsC3sfkilTzG/Wk7UPncYy+44OnTp7VqtZqEhoZq2LsA1oJjyWPTVYw8YsrLy4tDHdN2hoCAHB0dRcdySwEo/bgfgDm/raUqx3GfHLbYIs/2NydPntxOyAydJ6JFgoOD1VKPvlHe3d1dn5OTs7O/v78jNDTU6kUIljzcJpX8rJwoI7jU1NQw1nZy0NPT06DT6RSTWVTu5Qr0MYcOHVo/4+QJ+ZgKPM+TBw8e/JNSebvCIFRVVZWJ1kbAk12qsuYwdmKWmJgYxL4/44B1AwMDncbGxt7JPQqHCJmZmZsROIJnT4is1ckuy+Pj4/1nlTyADyYnJ69nSckVITo62ht1JiYmBkkhT+m463bu3Ll8TsgT8jEVOI4j2KCQs1UGC79//77Pz89PFRsb64s6xMjr9frhqKiopXNGHkAH5u/v7zAyMtIvNxXYMwODwTAiCILZ2vsQ9+3bt72bNm1ym3PyAILYv39/IKXyU0HqDTJKKR0cHOya1WMwqUAwVVVVmWzAckQQa/ne3t5mrBvsijwhU9s8tQW46cmTJzUrV66cm6NwqZjK9rkt8g8fPryJpbLdkgcQ4I0bNw5TKj8VLMk3NTUVeXp62sd1GClAKixbtkwxMDDQ+TmpAPL19fVn3d3d7edClFQg2JiYmOUsITEIgmDGoqeqqirT1dV1/pEHkArFxcVJlIqnAlteWlr6LZbMdnUfUA6wFe7h4cH19vY2W9tRZjdGP3z4MHj06NFNaPF5Sx4Aka1bt3papoLlVnh5efl3AQEBE6dAdn8xWiqQCvn5+d9ABNbuXV1d1VjQsM8vGFjeJAVxvV4/nJGR8Rtce5V9ajufYHmXuKKi4nt2K3xe9vJygZwOCQlxxW/z7t9hpgqQtet/fJhp/GSJzwf8F6i5FPrwWg6MAAAAAElFTkSuQmCC";
+    const LOGIN_WARN_DAYS = 7;
+    const SRV_KEY = "iwcred_server";
+    const SRV_PWD_KEY = "iwcred_server_pwd";
+    // 填写与读取分离：已添加的凭证在服务端只读展示，不支持修改，只能删除
+    const SRV_LIST_KEY = "iwcred_server_list";
+    const COOKIE_CACHE_KEY = "iwcred_cookie_cache";
+    const USER_CACHE_KEY = "iwcred_user_cache";
+    const SKEW_MS = 60 * 1000; // 提前 1 分钟视为过期
+
+/* ============================================================
  * Iwara 下载助手（油猴）
  *
  * 职责分工：
@@ -37,47 +93,11 @@
  * Chrome Tampermonkey 没有 GM_cookie，读不到 HttpOnly 的 cf_clearance。
  * 需要完整 Cookie 时请用 Violentmonkey 或 Firefox Tampermonkey。
  * ============================================================ */
-(function () { // dsh-skip-func-length 油猴脚本标准 IIFE 包裹（全脚本一体，不可按行拆分）
-    "use strict";
-
-    const VER = "7.7.2";
-    const ACCOUNT_TTL_MS = 5 * 60 * 1000; // 换页不重复打 /api/account-check
-    const SRV_SESSION_KEY = "iwcred_server_session";
-    const IWARA_ICON = "data:image/png;base64,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";
-    const LOGIN_WARN_DAYS = 7;
-    const SRV_KEY = "iwcred_server";
-    const SRV_PWD_KEY = "iwcred_server_pwd";
-    // 填写与读取分离：已添加的凭证在服务端只读展示，不支持修改，只能删除
-    const SRV_LIST_KEY = "iwcred_server_list";
-    const COOKIE_CACHE_KEY = "iwcred_cookie_cache";
-    const USER_CACHE_KEY = "iwcred_user_cache";
-    const SKEW_MS = 60 * 1000; // 提前 1 分钟视为过期
 
     function ls(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
     function log(...a) { try { console.log("[iwara-cred " + VER + "]", ...a); } catch (_) {} }
 
     /** 解析 JWT exp（秒）→ 毫秒时间戳。access_token 只有约 1 小时，登录到期看 refresh_token。 */
-    function jwtExpMs(token) {
-        try {
-            const p = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-            return p && p.exp ? p.exp * 1000 : 0;
-        } catch (_) { return 0; }
-    }
-
-    function toMs(n) {
-        n = Number(n) || 0;
-        if (n <= 0) return 0;
-        return n < 1e12 ? n * 1000 : n;
-    }
-
-    function cacheGet(key) {
-        try { return GM_getValue(key, null) || null; } catch (_) { return null; }
-    }
-    function cacheSet(key, val) {
-        try { GM_setValue(key, val); } catch (_) {}
-    }
-
-    /** 服务器地址/密码：GM 存储 + localStorage 双写。重装油猴或 GM 读失败时还能从本站 localStorage 回填。 */
     function storeGet(key) {
         try {
             if (typeof GM_getValue === "function") {
@@ -177,15 +197,6 @@
     }
 
     /** Cookie 缓存是否仍有效（提前 SKEW_MS 视为过期）。打开面板不走这里。 */
-    function cookieCacheValid() {
-        const c = cacheGet(COOKIE_CACHE_KEY);
-        if (!c || !c.text) return false;
-        const exp = Number(c.expiresAt) || 0;
-        if (!exp) return false;
-        return Date.now() < exp - SKEW_MS;
-    }
-
-    /** 从 GM_cookie 读取完整 cookie（含 HttpOnly）。仅在缓存过期 / 强制刷新时调用。 */
     function readCookieGM() {
         return new Promise((resolve) => {
             const fallback = () => {
@@ -235,63 +246,6 @@
     }
 
     /** 仅复制/回传/服务器没凭证时调用。force=true 无视缓存。 */
-    async function getCookieCached(force) {
-        if (!force && cookieCacheValid()) return cacheGet(COOKIE_CACHE_KEY);
-        const fresh = await readCookieGM();
-        cacheSet(COOKIE_CACHE_KEY, fresh);
-        return fresh;
-    }
-
-    async function buildPayload() {
-        let c = cacheGet(COOKIE_CACHE_KEY);
-        if (!c || !c.text) c = await getCookieCached(true);
-        return [
-            "Cookie=" + (c && c.text || ""),
-            "Token=" + ls("token"),
-            "AccessToken=" + ls("accessToken")
-        ].join("\n");
-    }
-
-    function unwrapUser(raw) {
-        if (!raw) return null;
-        if (raw.user && (raw.user.id || raw.user.username || raw.user.name)) return raw.user;
-        if (raw.id || raw.username || raw.name) return raw;
-        return null;
-    }
-
-    async function fetchIwaraUser(cookieText) {
-        let accessToken = ls("accessToken");
-        const refresh = ls("token");
-        const headersOf = (acc) => {
-            const h = {};
-            if (cookieText) h["Cookie"] = cookieText;
-            if (acc) h["Authorization"] = "Bearer " + acc;
-            return h;
-        };
-        let r = await gmRequest("GET", "https://api.iwara.tv/user", undefined, 10000, headersOf(accessToken));
-        if ((!r.ok || r.status === 401) && refresh) {
-            const tok = await gmRequest("POST", "https://api.iwara.tv/user/token", {}, 8000, {
-                Authorization: "Bearer " + refresh,
-                Cookie: cookieText || ""
-            });
-            const acc = tok.json && tok.json.accessToken;
-            if (acc) {
-                accessToken = acc;
-                try { localStorage.setItem("accessToken", acc); } catch (_) {}
-                r = await gmRequest("GET", "https://api.iwara.tv/user", undefined, 10000, headersOf(acc));
-            }
-        }
-        if (r.ok && r.json) {
-            const u = unwrapUser(r.json);
-            const username = (u && (u.username || u.name)) || "";
-            const id = (u && u.id) || "";
-            const name = (u && (u.name || u.username)) || username;
-            return { ok: true, loggedIn: true, username, name, id, profileUrl: username ? ("https://www.iwara.tv/profile/" + username) : "" };
-        }
-        if (refresh) return { ok: true, loggedIn: true, username: "", name: "", id: "", tokenOnly: true };
-        return { ok: false, loggedIn: false };
-    }
-
     function gmRequest(method, url, body, timeout, extraHeaders) {
         return new Promise((resolve) => {
             try {
@@ -346,83 +300,8 @@
         return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
     }
 
-    function sessionHeaders(session) {
-        // session 已是完整 name=value（会话 cookie 名可能带项目前缀，如 iwara_session）
-        return session ? { Cookie: session } : {};
-    }
-
-    /** 拿服务器 session cookie。有密码则 POST /api/login，session 缓存约 70 小时。 */
-    async function ensureServerSession(base) {
-        base = normalizeServerBase(base);
-        if (!base) return { ok: false, error: "没有服务器地址", base: "" };
-        const cached = cacheGet(SRV_SESSION_KEY);
-        if (cached && cached.base === base && cached.session && Date.now() < (cached.expiresAt || 0)) {
-            return { ok: true, session: cached.session, base, cached: true };
-        }
-        const probe = await probeServer(base);
-        if (!probe.ok) return { ok: false, error: probe.error, base };
-        let session = "";
-        if (probe.status && probe.status.needsAuth) {
-            const pwd = String((currentServer() && currentServer().password) || storeGet(SRV_PWD_KEY) || "");
-            if (!pwd) return { ok: false, error: "服务器设有密码，请填写服务器访问密码", base, needsPwd: true };
-            const lg = await serverLogin(base, pwd);
-            if (!lg.ok) return { ok: false, error: lg.error, base };
-            session = lg.session;
-            cacheSet(SRV_SESSION_KEY, { base, session, expiresAt: Date.now() + 70 * 3600 * 1000 });
-        }
-        return { ok: true, session, base };
-    }
-
-    /** GET /api/account-check：用户信息 + 脱敏 cred。成功即证明服务器在线。 */
-    async function getServerAccountCheck(base, session) {
-        const r = await gmRequest("GET", base + "/api/account-check", undefined, 12000, sessionHeaders(session));
-        if (r.status === 401) {
-            cacheSet(SRV_SESSION_KEY, null);
-            return { ok: false, status: 401, error: "服务器会话失效" };
-        }
-        if (r.ok && r.json) return { ok: true, data: r.json };
-        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status), status: r.status };
-    }
-
-    /** 本机 Cookie+Token 组合成设置页同款文本，POST /api/settings 存到服务器。 */
-    async function pushLocalCreds(base, session) {
-        const c = await getCookieCached(true);
-        const body = {
-            iwaraCookie: [
-                "Cookie=" + (c && c.text || ""),
-                "Token=" + ls("token"),
-                "AccessToken=" + ls("accessToken")
-            ].join("\n"),
-            // 一并回传本机浏览器 UA：Cloudflare 的 cf_clearance 与生成它的那个浏览器的 UA 绑定，
-            // 服务端若用别的 UA 请求会重新吃挑战（403 "Just a moment"）。服务端存为 iwaraUA，
-            // 之后所有 API/下载/aria2 请求都优先用它（见 iwara-api.js effectiveUA）。
-            iwaraUA: navigator.userAgent || ""
-        };
-        const r = await gmRequest("POST", base + "/api/settings", body, 12000, sessionHeaders(session));
-        return { ok: !!(r.ok && r.json && r.json.ok), error: (r.json && r.json.error) || r.error, cookie: c };
-    }
-
-    /** 只推当前视频 URL。服务器走 /api/receive → 同一套 /api/download 解析。不读 Cookie。 */
-    async function sendVideoToServer(base, videoUrl, session) {
-        const headers = session ? { "Cookie": session } : {};
-        const r = await gmRequest("POST", base + "/api/receive", { url: videoUrl }, 12000, headers);
-        if (r.ok && r.json && r.json.ok) return { ok: true, total: r.json.received || r.json.total || 1, status: r.status };
-        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status), status: r.status };
-    }
-
-    function currentVideoUrl() {
-        try {
-            const m = location.pathname.match(/\/(?:video|v)\/([\w-]+)/i);
-            if (!m) return "";
-            return location.origin + "/video/" + m[1];
-        } catch (_) { return ""; }
-    }
-
     function copyText(text, okMsg) {
         return new Promise((resolve) => {
-            function notify(msg) {
-                try { if (typeof GM_notification === "function") GM_notification({ text: msg, title: "Iwara 凭证", timeout: 5000 }); } catch (_) {}
-            }
             try {
                 if (typeof GM_setClipboard === "function") {
                     GM_setClipboard(text, { type: "text", mimetype: "text/plain" });
@@ -441,7 +320,64 @@
         if (document.getElementById("iwcred-style")) return;
         const style = document.createElement("style");
         style.id = "iwcred-style";
-        style.textContent = `
+        style.textContent = PANEL_CSS;
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    let fabEl, panelEl, toastEl;
+    let credRefreshing = false;
+    let lastAccount = { at: 0, data: null };
+    let lastHref = "";
+    let spaHooked = false;
+
+    /** 挂到 <html>，避开 SPA 替换 <body> 把按钮带走。 */
+    function showToast(msg) {
+        if (!ensureUi()) return;
+        toastEl.textContent = msg;
+        toastEl.style.display = "block";
+        setTimeout(() => { toastEl.style.display = "none"; }, 4000);
+    }
+    function srvSetStatus(msg, cls) {
+        if (!panelEl) return;
+        const el = panelEl.querySelector("#iwcred-srv-status");
+        if (!el) return;
+        el.textContent = msg;
+        el.className = "srv" + (cls ? " " + cls : "");
+        if (cls !== "info") setTimeout(() => { el.textContent = ""; el.className = ""; }, 6000);
+    }
+    function srvInput() { return panelEl ? panelEl.querySelector("#iwcred-server") : null; }
+
+    async function fetchServerCreds(base, session) {
+        const r = await gmRequest("GET", base + "/api/cred", undefined, 12000, sessionHeaders(session));
+        if (!r.ok || !r.json || !r.json.ok) return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
+        return { ok: true, cred: r.json };
+    }
+
+    /** 把 Cookie 项逐个写进当前域（document.cookie；HttpOnly 项 GM_cookie.set 兜底）。 */
+    function applyCookieToBrowser(cookieText) {
+        const items = String(cookieText || "").split(";").map((s) => s.trim()).filter((p) => p && !/^=/.test(p) && !/deleted/i.test(p));
+        let written = 0;
+        for (const item of items) {
+            const eq = item.indexOf("=");
+            if (eq <= 0) continue;
+            const name = item.slice(0, eq).trim();
+            const value = item.slice(eq + 1).trim();
+            if (!name || !value) continue;
+            try { document.cookie = name + "=" + value + "; path=/"; written++; } catch (_) {}
+            // HttpOnly（如 cf_clearance）document.cookie 写不进，用 GM_cookie.set 兜底
+            if (typeof GM_cookie !== "undefined" && GM_cookie && typeof GM_cookie.set === "function") {
+                try {
+                    GM_cookie.set({ url: location.origin + "/", name, value, path: "/" }, () => {});
+                } catch (_) {}
+            }
+        }
+        return written;
+    }
+
+    /** 注入主流程：GET /api/cred → 写 cookie + localStorage，提示刷新。 */
+
+    /** 面板样式（独立片段承载：CSS 体量大，放常量里便于项目覆盖与审阅） */
+    const PANEL_CSS = `
 #iwcred-fab{position:fixed;right:14px;bottom:14px;z-index:2147483647;width:56px;height:56px;border-radius:50%;
   padding:0;border:none;cursor:pointer;overflow:hidden;background:#fff;
   box-shadow:0 4px 16px rgba(0,0,0,.35);-webkit-tap-highlight-color:transparent;pointer-events:auto}
@@ -499,16 +435,10 @@
 #iwcred-ctx button:active,#iwcred-ctx button:hover{background:#eef4ff}
 a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
 `;
-        (document.head || document.documentElement).appendChild(style);
-    }
 
-    let fabEl, panelEl, toastEl;
-    let credRefreshing = false;
-    let lastAccount = { at: 0, data: null };
-    let lastHref = "";
-    let spaHooked = false;
-
-    /** 挂到 <html>，避开 SPA 替换 <body> 把按钮带走。 */
+            function notify(msg) {
+                try { if (typeof GM_notification === "function") GM_notification({ text: msg, title: "Iwara 凭证", timeout: 5000 }); } catch (_) {}
+            }
     function uiHost() { return document.documentElement; }
 
     function mountUi(el) {
@@ -517,27 +447,25 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         if (el.parentNode !== host) host.appendChild(el);
     }
 
-    function ensureUi() {
-        if (!document.documentElement) return false;
-        injectStyle();
-        if (!fabEl || !document.documentElement.contains(fabEl)) {
-            if (!fabEl) {
-                fabEl = document.createElement("button");
-                fabEl.id = "iwcred-fab";
-                fabEl.title = "Iwara 下载助手";
-                const img = document.createElement("img");
-                img.src = IWARA_ICON;
-                img.alt = "Iwara";
-                fabEl.appendChild(img);
-                fabEl.addEventListener("click", showPanel);
-            }
-            mountUi(fabEl);
+    /** 浮动按钮：创建 + 挂载（幂等；SPA 换页后 DOM 被替换会重新挂） */
+    function ensureFab() {
+        if (fabEl && document.documentElement.contains(fabEl)) return;
+        if (!fabEl) {
+            fabEl = document.createElement("button");
+            fabEl.id = "iwcred-fab";
+            fabEl.title = "Iwara 下载助手";
+            const img = document.createElement("img");
+            img.src = IWARA_ICON;
+            img.alt = "Iwara";
+            fabEl.appendChild(img);
+            fabEl.addEventListener("click", showPanel);
         }
-        if (!panelEl || !document.documentElement.contains(panelEl)) {
-            if (!panelEl) {
-                panelEl = document.createElement("div");
-                panelEl.id = "iwcred-panel";
-                panelEl.innerHTML = `
+        mountUi(fabEl);
+    }
+
+    /** 面板 DOM 骨架（id 统一 iwcred- 前缀，组装时替换） */
+    function panelHtml() {
+        return `
 <div id="iwcred-head"><b>Iwara 下载助手</b><span id="iwcred-close">✕</span></div>
 <div id="iwcred-userbar">打开即可发送；凭证按失效时间缓存</div>
 <div id="iwcred-body">
@@ -576,57 +504,73 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
   <div id="iwcred-status"></div>
   <div id="iwcred-info"></div>
 </div>`;
+    }
+
+    /** 面板事件绑定（与 panelHtml 的 id 一一对应） */
+    function bindPanelEvents() {
+        panelEl.querySelector("#iwcred-close").addEventListener("click", () => { panelEl.style.display = "none"; });
+        panelEl.querySelector("#iwcred-copy-all").addEventListener("click", async () => {
+            const p = await buildPayload();
+            copyText(p, "✅ 已复制全部凭证").then((ok) => setStatus(ok ? "✅ 已复制全部（Cookie+Token）" : "❌ 复制失败", ok ? "ok" : "err"));
+        });
+        panelEl.querySelector("#iwcred-copy-cookie").addEventListener("click", async () => {
+            let c = cacheGet(COOKIE_CACHE_KEY);
+            if (!c || !c.text) c = await getCookieCached(true);
+            copyText(c && c.text || "", "✅ 已复制 Cookie").then((ok) => setStatus(ok ? "✅ 已复制 Cookie" : "❌ 复制失败", ok ? "ok" : "err"));
+        });
+        panelEl.querySelector("#iwcred-refresh-cred").addEventListener("click", () => syncFromServer(true));
+        panelEl.querySelector("#iwcred-send").addEventListener("click", srvSendFlow);
+        panelEl.querySelector("#iwcred-add").addEventListener("click", () => {
+            panelEl.querySelector("#iwcred-add-form").style.display = "block";
+            panelEl.querySelector("#iwcred-url-new").value = "";
+            panelEl.querySelector("#iwcred-pwd-new").value = "";
+        });
+        panelEl.querySelector("#iwcred-add-cancel").addEventListener("click", () => {
+            panelEl.querySelector("#iwcred-add-form").style.display = "none";
+        });
+        panelEl.querySelector("#iwcred-add-ok").addEventListener("click", addServerFromForm);
+        panelEl.querySelector("#iwcred-del").addEventListener("click", deleteSelectedServer);
+        panelEl.querySelector("#iwcred-server").addEventListener("change", () => {
+            const url = panelEl.querySelector("#iwcred-server").value;
+            const hit = loadServerList().find((it) => it.url === url);
+            if (!hit) return;
+            storeSet(SRV_KEY, hit.url);
+            storeSet(SRV_PWD_KEY, hit.password);
+            showPanel();
+        });
+        panelEl.querySelector("#iwcred-inject").addEventListener("click", srvInjectFlow);
+    }
+
+    /** 底部提示条：创建 + 挂载（幂等） */
+    function ensureToast() {
+        if (toastEl && document.documentElement.contains(toastEl)) return;
+        if (!toastEl) {
+            toastEl = document.createElement("div");
+            toastEl.id = "iwcred-toast";
+        }
+        mountUi(toastEl);
+    }
+
+    /** 组装 UI：样式 + 浮动按钮 + 面板 + 提示条（幂等；供各处调用，只建一次） */
+    function ensureUi() {
+        if (!document.documentElement) return false;
+        injectStyle();
+        ensureFab();
+        if (!panelEl || !document.documentElement.contains(panelEl)) {
+            if (!panelEl) {
+                panelEl = document.createElement("div");
+                panelEl.id = "iwcred-panel";
+                panelEl.innerHTML = panelHtml();
                 panelEl.style.display = "none";
                 panelEl.classList.add("server-ok");
-                panelEl.querySelector("#iwcred-close").addEventListener("click", () => { panelEl.style.display = "none"; });
-                panelEl.querySelector("#iwcred-copy-all").addEventListener("click", async () => {
-                    const p = await buildPayload();
-                    copyText(p, "✅ 已复制全部凭证").then((ok) => setStatus(ok ? "✅ 已复制全部（Cookie+Token）" : "❌ 复制失败", ok ? "ok" : "err"));
-                });
-                panelEl.querySelector("#iwcred-copy-cookie").addEventListener("click", async () => {
-                    let c = cacheGet(COOKIE_CACHE_KEY);
-                    if (!c || !c.text) c = await getCookieCached(true);
-                    copyText(c && c.text || "", "✅ 已复制 Cookie").then((ok) => setStatus(ok ? "✅ 已复制 Cookie" : "❌ 复制失败", ok ? "ok" : "err"));
-                });
-                panelEl.querySelector("#iwcred-refresh-cred").addEventListener("click", () => syncFromServer(true));
-                panelEl.querySelector("#iwcred-send").addEventListener("click", srvSendFlow);
-                panelEl.querySelector("#iwcred-add").addEventListener("click", () => {
-                    panelEl.querySelector("#iwcred-add-form").style.display = "block";
-                    panelEl.querySelector("#iwcred-url-new").value = "";
-                    panelEl.querySelector("#iwcred-pwd-new").value = "";
-                });
-                panelEl.querySelector("#iwcred-add-cancel").addEventListener("click", () => {
-                    panelEl.querySelector("#iwcred-add-form").style.display = "none";
-                });
-                panelEl.querySelector("#iwcred-add-ok").addEventListener("click", addServerFromForm);
-                panelEl.querySelector("#iwcred-del").addEventListener("click", deleteSelectedServer);
-                panelEl.querySelector("#iwcred-server").addEventListener("change", () => {
-                    const url = panelEl.querySelector("#iwcred-server").value;
-                    const hit = loadServerList().find((it) => it.url === url);
-                    if (!hit) return;
-                    storeSet(SRV_KEY, hit.url);
-                    storeSet(SRV_PWD_KEY, hit.password);
-                    showPanel();
-                });
-                panelEl.querySelector("#iwcred-inject").addEventListener("click", srvInjectFlow);
+                bindPanelEvents();
             }
             mountUi(panelEl);
         }
-        if (!toastEl || !document.documentElement.contains(toastEl)) {
-            if (!toastEl) {
-                toastEl = document.createElement("div");
-                toastEl.id = "iwcred-toast";
-            }
-            mountUi(toastEl);
-        }
+        ensureToast();
         return true;
     }
 
-    function accountCacheFresh() {
-        return !!(lastAccount.data && Date.now() - lastAccount.at < ACCOUNT_TTL_MS);
-    }
-
-    /** 同步弹出。网络/Cookie 全部丢到下一拍，避免点击无反馈。 */
     function showPanel() {
         if (!ensureUi()) return;
         panelEl.style.display = "block";
@@ -638,12 +582,6 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         setTimeout(() => { syncFromServer(false).catch((e) => log("syncFromServer", e)); }, 0);
     }
 
-    function showToast(msg) {
-        if (!ensureUi()) return;
-        toastEl.textContent = msg;
-        toastEl.style.display = "block";
-        setTimeout(() => { toastEl.style.display = "none"; }, 4000);
-    }
     function setStatus(msg, cls) {
         if (!panelEl) return;
         const el = panelEl.querySelector("#iwcred-status");
@@ -651,16 +589,154 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         el.className = cls || "";
         setTimeout(() => { el.textContent = ""; el.className = ""; }, 3500);
     }
-    function srvSetStatus(msg, cls) {
-        if (!panelEl) return;
-        const el = panelEl.querySelector("#iwcred-srv-status");
-        if (!el) return;
-        el.textContent = msg;
-        el.className = "srv" + (cls ? " " + cls : "");
-        if (cls !== "info") setTimeout(() => { el.textContent = ""; el.className = ""; }, 6000);
+    function hideCtxMenu() {
+        const m = document.getElementById("iwcred-ctx");
+        if (m && m.parentNode) m.parentNode.removeChild(m);
     }
-    function srvInput() { return panelEl ? panelEl.querySelector("#iwcred-server") : null; }
 
+    function showCtxMenu(x, y, videoUrl) {
+        hideCtxMenu();
+        const m = document.createElement("div");
+        m.id = "iwcred-ctx";
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = "📤 发送到服务器";
+        b.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            hideCtxMenu();
+            srvSendFlow(videoUrl);
+        });
+        m.appendChild(b);
+        document.documentElement.appendChild(m);
+        const pad = 8;
+        const w = m.offsetWidth || 188;
+        const h = m.offsetHeight || 44;
+        let left = x;
+        let top = y;
+        if (left + w > window.innerWidth - pad) left = window.innerWidth - w - pad;
+        if (top + h > window.innerHeight - pad) top = window.innerHeight - h - pad;
+        if (left < pad) left = pad;
+        if (top < pad) top = pad;
+        m.style.left = left + "px";
+        m.style.top = top + "px";
+    }
+
+    function jwtExpMs(token) {
+        try {
+            const p = JSON.parse(atob(String(token).split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+            return p && p.exp ? p.exp * 1000 : 0;
+        } catch (_) { return 0; }
+    }
+
+    function toMs(n) {
+        n = Number(n) || 0;
+        if (n <= 0) return 0;
+        return n < 1e12 ? n * 1000 : n;
+    }
+
+    function cacheGet(key) {
+        try { return GM_getValue(key, null) || null; } catch (_) { return null; }
+    }
+    function cacheSet(key, val) {
+        try { GM_setValue(key, val); } catch (_) {}
+    }
+
+    /** 服务器地址/密码：GM 存储 + localStorage 双写。重装油猴或 GM 读失败时还能从本站 localStorage 回填。 */
+    async function buildPayload() {
+        let c = cacheGet(COOKIE_CACHE_KEY);
+        if (!c || !c.text) c = await getCookieCached(true);
+        return [
+            "Cookie=" + (c && c.text || ""),
+            "Token=" + ls("token"),
+            "AccessToken=" + ls("accessToken")
+        ].join("\n");
+    }
+
+    function unwrapUser(raw) {
+        if (!raw) return null;
+        if (raw.user && (raw.user.id || raw.user.username || raw.user.name)) return raw.user;
+        if (raw.id || raw.username || raw.name) return raw;
+        return null;
+    }
+
+    async function fetchIwaraUser(cookieText) {
+        let accessToken = ls("accessToken");
+        const refresh = ls("token");
+        const headersOf = (acc) => {
+            const h = {};
+            if (cookieText) h["Cookie"] = cookieText;
+            if (acc) h["Authorization"] = "Bearer " + acc;
+            return h;
+        };
+        let r = await gmRequest("GET", "https://api.iwara.tv/user", undefined, 10000, headersOf(accessToken));
+        if ((!r.ok || r.status === 401) && refresh) {
+            const tok = await gmRequest("POST", "https://api.iwara.tv/user/token", {}, 8000, {
+                Authorization: "Bearer " + refresh,
+                Cookie: cookieText || ""
+            });
+            const acc = tok.json && tok.json.accessToken;
+            if (acc) {
+                accessToken = acc;
+                try { localStorage.setItem("accessToken", acc); } catch (_) {}
+                r = await gmRequest("GET", "https://api.iwara.tv/user", undefined, 10000, headersOf(acc));
+            }
+        }
+        if (r.ok && r.json) {
+            const u = unwrapUser(r.json);
+            const username = (u && (u.username || u.name)) || "";
+            const id = (u && u.id) || "";
+            const name = (u && (u.name || u.username)) || username;
+            return { ok: true, loggedIn: true, username, name, id, profileUrl: username ? ("https://www.iwara.tv/profile/" + username) : "" };
+        }
+        if (refresh) return { ok: true, loggedIn: true, username: "", name: "", id: "", tokenOnly: true };
+        return { ok: false, loggedIn: false };
+    }
+
+    function sessionHeaders(session) {
+        // session 已是完整 name=value（会话 cookie 名可能带项目前缀，如 iwara_session）
+        return session ? { Cookie: session } : {};
+    }
+
+    /** 拿服务器 session cookie。有密码则 POST /api/login，session 缓存约 70 小时。 */
+    async function ensureServerSession(base) {
+        base = normalizeServerBase(base);
+        if (!base) return { ok: false, error: "没有服务器地址", base: "" };
+        const cached = cacheGet(SRV_SESSION_KEY);
+        if (cached && cached.base === base && cached.session && Date.now() < (cached.expiresAt || 0)) {
+            return { ok: true, session: cached.session, base, cached: true };
+        }
+        const probe = await probeServer(base);
+        if (!probe.ok) return { ok: false, error: probe.error, base };
+        let session = "";
+        if (probe.status && probe.status.needsAuth) {
+            const pwd = String((currentServer() && currentServer().password) || storeGet(SRV_PWD_KEY) || "");
+            if (!pwd) return { ok: false, error: "服务器设有密码，请填写服务器访问密码", base, needsPwd: true };
+            const lg = await serverLogin(base, pwd);
+            if (!lg.ok) return { ok: false, error: lg.error, base };
+            session = lg.session;
+            cacheSet(SRV_SESSION_KEY, { base, session, expiresAt: Date.now() + 70 * 3600 * 1000 });
+        }
+        return { ok: true, session, base };
+    }
+
+    /** GET /api/account-check：用户信息 + 脱敏 cred。成功即证明服务器在线。 */
+    async function getServerAccountCheck(base, session) {
+        const r = await gmRequest("GET", base + "/api/account-check", undefined, 12000, sessionHeaders(session));
+        if (r.status === 401) {
+            cacheSet(SRV_SESSION_KEY, null);
+            return { ok: false, status: 401, error: "服务器会话失效" };
+        }
+        if (r.ok && r.json) return { ok: true, data: r.json };
+        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status), status: r.status };
+    }
+
+    /** 本机 Cookie+Token 组合成设置页同款文本，POST /api/settings 存到服务器。 */
+    function accountCacheFresh() {
+        return !!(lastAccount.data && Date.now() - lastAccount.at < ACCOUNT_TTL_MS);
+    }
+
+    /** 同步弹出。网络/Cookie 全部丢到下一拍，避免点击无反馈。 */
     function fmtExp(ms) {
         const n = Number(ms) || 0;
         if (!n) return "未知";
@@ -747,6 +823,140 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
     }
 
     /** 立刻填地址/密码/本机 token 框。不发请求、不读 GM_cookie。 */
+    /** 会话失效（401）就清缓存重登一次，返回最终 account-check 结果 */
+    async function fetchAccountCheckWithRetry(base, session) {
+        let chk = await getServerAccountCheck(base, session);
+        if (!chk.ok && chk.status === 401) {
+            cacheSet(SRV_SESSION_KEY, null);
+            const again = await ensureServerSession(base);
+            if (again.ok) chk = await getServerAccountCheck(again.base, again.session);
+        }
+        return chk;
+    }
+
+    /** 服务器没有凭证（或强制刷新）时：采集本机凭证回传并复检渲染 */
+    async function pushCredsAndRecheck(sess, data, forcePush) {
+        renderServerAccount(data, forcePush ? "正在强制采集本机凭证并回传…" : "服务器没有 Cookie，正在本机采集并回传…");
+        const pushed = await pushLocalCreds(sess.base, sess.session);
+        if (!pushed.ok) {
+            renderServerAccount(data, "回传失败：" + (pushed.error || "未知错误"));
+            if (forcePush) setStatus("回传失败: " + (pushed.error || ""), "err");
+            return;
+        }
+        const chk2 = await getServerAccountCheck(sess.base, sess.session);
+        if (chk2.ok) {
+            lastAccount = { at: Date.now(), data: chk2.data };
+            renderServerAccount(chk2.data, "✅ 已回传并保存到服务器");
+        } else renderServerAccount(data, "✅ 已回传（再次检测失败：" + chk2.error + "）");
+        if (forcePush) setStatus("✅ 已强制刷新并回传", "ok");
+    }
+
+    /** 面板顶部账号信息条（统一入口，避免各分支重复取节点/设 class） */
+    function setUserbar(text, cls) {
+        const el = panelEl && panelEl.querySelector("#iwcred-userbar");
+        if (!el) return;
+        el.textContent = text;
+        el.className = cls || "";
+    }
+
+    /** 从服务器同步账号状态（forcePush=强制采集本机凭证并回传） */
+    async function syncFromServer(forcePush) {
+        if (!ensureUi()) return;
+        if (credRefreshing) return;
+        if (!forcePush && accountCacheFresh()) {
+            renderServerAccount(lastAccount.data);
+            return;
+        }
+        credRefreshing = true;
+        try {
+            const cur = currentServer();
+            const base = cur ? cur.url : "";
+            if (!base) {
+                setUserbar("没有服务器地址：点「添加」写入后再从 /api/account-check 读取登录信息", "err");
+                srvSetStatus("请先添加并选择服务器", "err");
+                return;
+            }
+            setUserbar("正在从服务器读取账号（GET /api/account-check）…");
+            const sess = await ensureServerSession(base);
+            if (!sess.ok) {
+                setUserbar("服务器离线或无法登录：\n" + sess.error, "err");
+                srvSetStatus(sess.error, "err");
+                return;
+            }
+            srvSetStatus("✅ 服务器在线：" + sess.base, "ok");
+            const chk = await fetchAccountCheckWithRetry(sess.base, sess.session);
+            if (!chk.ok) {
+                setUserbar("读取 /api/account-check 失败：\n" + chk.error, "err");
+                srvSetStatus(chk.error, "err");
+                return;
+            }
+            const data = chk.data;
+            lastAccount = { at: Date.now(), data };
+            const cred = data.cred || {};
+            const serverHasCred = !!(data.cookieSet || cred.hasCookie || cred.hasToken);
+            if (!serverHasCred || forcePush) {
+                await pushCredsAndRecheck(sess, data, forcePush);
+                return;
+            }
+            renderServerAccount(data);
+            if (forcePush) setStatus("✅ 已从服务器刷新账号信息", "ok");
+        } catch (e) {
+            setUserbar("同步失败: " + (e && e.message || e), "err");
+            if (forcePush) setStatus("刷新失败: " + (e && e.message || e), "err");
+        } finally {
+            credRefreshing = false;
+        }
+    }
+
+    function cookieCacheValid() {
+        const c = cacheGet(COOKIE_CACHE_KEY);
+        if (!c || !c.text) return false;
+        const exp = Number(c.expiresAt) || 0;
+        if (!exp) return false;
+        return Date.now() < exp - SKEW_MS;
+    }
+
+    /** 从 GM_cookie 读取完整 cookie（含 HttpOnly）。仅在缓存过期 / 强制刷新时调用。 */
+    async function getCookieCached(force) {
+        if (!force && cookieCacheValid()) return cacheGet(COOKIE_CACHE_KEY);
+        const fresh = await readCookieGM();
+        cacheSet(COOKIE_CACHE_KEY, fresh);
+        return fresh;
+    }
+
+    async function pushLocalCreds(base, session) {
+        const c = await getCookieCached(true);
+        const body = {
+            iwaraCookie: [
+                "Cookie=" + (c && c.text || ""),
+                "Token=" + ls("token"),
+                "AccessToken=" + ls("accessToken")
+            ].join("\n"),
+            // 一并回传本机浏览器 UA：Cloudflare 的 cf_clearance 与生成它的那个浏览器的 UA 绑定，
+            // 服务端若用别的 UA 请求会重新吃挑战（403 "Just a moment"）。服务端存为 iwaraUA，
+            // 之后所有 API/下载/aria2 请求都优先用它（见 iwara-api.js effectiveUA）。
+            iwaraUA: navigator.userAgent || ""
+        };
+        const r = await gmRequest("POST", base + "/api/settings", body, 12000, sessionHeaders(session));
+        return { ok: !!(r.ok && r.json && r.json.ok), error: (r.json && r.json.error) || r.error, cookie: c };
+    }
+
+    /** 只推当前视频 URL。服务器走 /api/receive → 同一套 /api/download 解析。不读 Cookie。 */
+    async function sendVideoToServer(base, videoUrl, session) {
+        const headers = session ? { "Cookie": session } : {};
+        const r = await gmRequest("POST", base + "/api/receive", { url: videoUrl }, 12000, headers);
+        if (r.ok && r.json && r.json.ok) return { ok: true, total: r.json.received || r.json.total || 1, status: r.status };
+        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status), status: r.status };
+    }
+
+    function currentVideoUrl() {
+        try {
+            const m = location.pathname.match(/\/(?:video|v)\/([\w-]+)/i);
+            if (!m) return "";
+            return location.origin + "/video/" + m[1];
+        } catch (_) { return ""; }
+    }
+
     function fillInstant() {
         if (!ensureUi()) return;
         const c = cacheGet(COOKIE_CACHE_KEY);
@@ -765,88 +975,40 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
         }
     }
 
-    /** 从服务器拉账号。没凭证或 forcePush=true 才本机采集并回传。 */
-    async function syncFromServer(forcePush) {
-        if (!ensureUi()) return;
-        if (credRefreshing) return;
-        if (!forcePush && accountCacheFresh()) {
-            renderServerAccount(lastAccount.data);
-            return;
-        }
-        credRefreshing = true;
-        const userbar = panelEl.querySelector("#iwcred-userbar");
-        try {
-            const cur = currentServer();
-            const base = cur ? cur.url : "";
-            if (!base) {
-                userbar.textContent = "没有服务器地址：点「添加」写入后再从 /api/account-check 读取登录信息";
-                userbar.className = "err";
-                srvSetStatus("请先添加并选择服务器", "err");
-                return;
-            }
-            userbar.textContent = "正在从服务器读取账号（GET /api/account-check）…";
-            userbar.className = "";
-            const sess = await ensureServerSession(base);
-            if (!sess.ok) {
-                userbar.textContent = "服务器离线或无法登录：\n" + sess.error;
-                userbar.className = "err";
-                srvSetStatus(sess.error, "err");
-                return;
-            }
-            srvSetStatus("✅ 服务器在线：" + sess.base, "ok");
-            let chk = await getServerAccountCheck(sess.base, sess.session);
-            if (!chk.ok && chk.status === 401) {
-                cacheSet(SRV_SESSION_KEY, null);
-                const again = await ensureServerSession(base);
-                if (again.ok) chk = await getServerAccountCheck(again.base, again.session);
-            }
-            if (!chk.ok) {
-                userbar.textContent = "读取 /api/account-check 失败：\n" + chk.error;
-                userbar.className = "err";
-                srvSetStatus(chk.error, "err");
-                return;
-            }
-            const data = chk.data;
-            lastAccount = { at: Date.now(), data };
-            const cred = data.cred || {};
-            const serverHasCred = !!(data.cookieSet || cred.hasCookie || cred.hasToken);
-            if (!serverHasCred || forcePush) {
-                renderServerAccount(data, forcePush ? "正在强制采集本机凭证并回传…" : "服务器没有 Cookie，正在本机采集并回传…");
-                const pushed = await pushLocalCreds(sess.base, sess.session);
-                if (!pushed.ok) {
-                    renderServerAccount(data, "回传失败：" + (pushed.error || "未知错误"));
-                    if (forcePush) setStatus("回传失败: " + (pushed.error || ""), "err");
-                    return;
-                }
-                const chk2 = await getServerAccountCheck(sess.base, sess.session);
-                if (chk2.ok) {
-                    lastAccount = { at: Date.now(), data: chk2.data };
-                    renderServerAccount(chk2.data, "✅ 已回传并保存到服务器");
-                } else renderServerAccount(data, "✅ 已回传（再次检测失败：" + chk2.error + "）");
-                if (forcePush) setStatus("✅ 已强制刷新并回传", "ok");
-                return;
-            }
-            renderServerAccount(data);
-            if (forcePush) setStatus("✅ 已从服务器刷新账号信息", "ok");
-        } catch (e) {
-            userbar.textContent = "同步失败: " + (e && e.message || e);
-            userbar.className = "err";
-            if (forcePush) setStatus("刷新失败: " + (e && e.message || e), "err");
-        } finally {
-            credRefreshing = false;
-        }
-    }
-
-    async function srvSendFlow(explicitUrl) {
-        if (!ensureUi()) return;
+    /** 取要发送的视频链接：显式传入优先，否则从当前页面解析；无效时提示并返回空 */
+    function resolveVideoUrl(explicitUrl) {
         const videoUrl = (typeof explicitUrl === "string" && explicitUrl) ? explicitUrl : currentVideoUrl();
         if (!videoUrl) {
             srvSetStatus("当前不是视频页（未匹配 /video/xxx），请打开视频页再发", "err");
             showToast("请在视频链接上右键 / 长按");
-            return;
         }
+        return videoUrl;
+    }
+
+    /** 服务器要访问密码时自动登录；返回会话串（""=无需登录），null=失败/没密码（已提示） */
+    async function ensureSendSession(base, cur, probe) {
+        if (!(probe.status && probe.status.needsAuth)) return "";
+        const pwd = String((cur && cur.password) || storeGet(SRV_PWD_KEY) || "");
+        if (!pwd) {
+            srvSetStatus("⚠️ 服务器设有访问密码：请删除后重新添加并填写密码", "err");
+            return null;
+        }
+        srvSetStatus("服务器设有密码，正在自动登录…", "info");
+        const lg = await serverLogin(base, pwd);
+        if (!lg.ok) {
+            srvSetStatus("自动登录失败：" + lg.error, "err");
+            return null;
+        }
+        return lg.session;
+    }
+
+    /** 发送当前视频链接到服务器（服务器自行解析下载，不读本机 Cookie） */
+    async function srvSendFlow(explicitUrl) {
+        if (!ensureUi()) return;
+        const videoUrl = resolveVideoUrl(explicitUrl);
+        if (!videoUrl) return;
         const cur = currentServer();
-        let base = cur ? cur.url : "";
+        const base = cur ? cur.url : "";
         if (!base) {
             showPanel();
             srvSetStatus("没有服务器地址：请先点「添加」写入服务端", "err");
@@ -862,21 +1024,8 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
                 srvSetStatus(`服务器离线：${probe.error}`, "err");
                 return;
             }
-            let session = "";
-            if (probe.status && probe.status.needsAuth) {
-                let pwd = String((cur && cur.password) || storeGet(SRV_PWD_KEY) || "");
-                if (!pwd) {
-                    srvSetStatus("⚠️ 服务器设有访问密码：请删除后重新添加并填写密码", "err");
-                    return;
-                }
-                srvSetStatus("服务器设有密码，正在自动登录…", "info");
-                const lg = await serverLogin(base, pwd);
-                if (!lg.ok) {
-                    srvSetStatus("自动登录失败：" + lg.error, "err");
-                    return;
-                }
-                session = lg.session;
-            }
+            const session = await ensureSendSession(base, cur, probe);
+            if (session === null) return;
             srvSetStatus(`服务器在线（端口 ${probe.status.port || "?"}），正在发送视频…`, "info");
             const r = await sendVideoToServer(base, videoUrl, session);
             if (r.ok) {
@@ -898,34 +1047,6 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
     }
 
     /** 从服务器拉明文凭证（GET /api/cred，需登录会话）。 */
-    async function fetchServerCreds(base, session) {
-        const r = await gmRequest("GET", base + "/api/cred", undefined, 12000, sessionHeaders(session));
-        if (!r.ok || !r.json || !r.json.ok) return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
-        return { ok: true, cred: r.json };
-    }
-
-    /** 把 Cookie 项逐个写进当前域（document.cookie；HttpOnly 项 GM_cookie.set 兜底）。 */
-    function applyCookieToBrowser(cookieText) {
-        const items = String(cookieText || "").split(";").map((s) => s.trim()).filter((p) => p && !/^=/.test(p) && !/deleted/i.test(p));
-        let written = 0;
-        for (const item of items) {
-            const eq = item.indexOf("=");
-            if (eq <= 0) continue;
-            const name = item.slice(0, eq).trim();
-            const value = item.slice(eq + 1).trim();
-            if (!name || !value) continue;
-            try { document.cookie = name + "=" + value + "; path=/"; written++; } catch (_) {}
-            // HttpOnly（如 cf_clearance）document.cookie 写不进，用 GM_cookie.set 兜底
-            if (typeof GM_cookie !== "undefined" && GM_cookie && typeof GM_cookie.set === "function") {
-                try {
-                    GM_cookie.set({ url: location.origin + "/", name, value, path: "/" }, () => {});
-                } catch (_) {}
-            }
-        }
-        return written;
-    }
-
-    /** 注入主流程：GET /api/cred → 写 cookie + localStorage，提示刷新。 */
     async function srvInjectFlow() {
         if (!ensureUi()) return;
         const cur = currentServer();
@@ -1010,39 +1131,6 @@ a[href*="/video/"],a[href*="/v/"]{-webkit-touch-callout:none}
             el = el.parentElement;
         }
         return "";
-    }
-
-    function hideCtxMenu() {
-        const m = document.getElementById("iwcred-ctx");
-        if (m && m.parentNode) m.parentNode.removeChild(m);
-    }
-
-    function showCtxMenu(x, y, videoUrl) {
-        hideCtxMenu();
-        const m = document.createElement("div");
-        m.id = "iwcred-ctx";
-        const b = document.createElement("button");
-        b.type = "button";
-        b.textContent = "📤 发送到服务器";
-        b.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            hideCtxMenu();
-            srvSendFlow(videoUrl);
-        });
-        m.appendChild(b);
-        document.documentElement.appendChild(m);
-        const pad = 8;
-        const w = m.offsetWidth || 188;
-        const h = m.offsetHeight || 44;
-        let left = x;
-        let top = y;
-        if (left + w > window.innerWidth - pad) left = window.innerWidth - w - pad;
-        if (top + h > window.innerHeight - pad) top = window.innerHeight - h - pad;
-        if (left < pad) left = pad;
-        if (top < pad) top = pad;
-        m.style.left = left + "px";
-        m.style.top = top + "px";
     }
 
     function bindContextSend() {
