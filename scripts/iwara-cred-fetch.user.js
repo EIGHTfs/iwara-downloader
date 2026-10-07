@@ -47,6 +47,7 @@
     "STORE_PREFIX": "iwcred:",
     "LOG_TAG": "iwara-cred",
     "SITE_DOMAIN": "iwara.tv",
+    "SITE_DOMAINS": "www.iwara.tv,iwara.tv",
     "SITE_NAME": "Iwara",
     "NOTIFY_TITLE": "Iwara 凭证",
     "ICON": "data:image/png;base64,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",
@@ -196,52 +197,55 @@
         showPanel();
     }
 
-    /** Cookie 缓存是否仍有效（提前 SKEW_MS 视为过期）。打开面板不走这里。 */
+    /** 读本机 Cookie：GM_cookie 优先（含 HttpOnly 项），不可用时回退 document.cookie。
+     *  【差异取优合并】到期计算取 iwara 侧（cf_clearance > 各 cookie 最早到期 > token exp），
+     *  诊断文案取 gbmd 侧（diag 说明为什么读不到：未装 GM_cookie / 未授权 / 返回 0 个），
+     *  这样「读不到」时用户能直接看到原因，而不是只看到一段空文本。 */
     function readCookieGM() {
         return new Promise((resolve) => {
-            const fallback = () => {
+            const fallback = (why) => {
                 const text = document.cookie || "";
                 const tokenExp = jwtExpMs(ls("token"));
                 resolve({
                     text,
                     count: text ? text.split(";").filter(Boolean).length : 0,
                     source: "document.cookie",
+                    diag: why || "GM_cookie 不可用，回退 document.cookie（HttpOnly 项读不到）",
                     expiresAt: tokenExp || (Date.now() + 6 * 3600 * 1000),
                     fetchedAt: Date.now()
                 });
             };
             try {
-                if (typeof GM_cookie !== "undefined" && GM_cookie && typeof GM_cookie.list === "function") {
-                    GM_cookie.list({}, (cookies, error) => {
-                        if (error) { log("GM_cookie.list error:", error); return fallback(); }
-                        if (!Array.isArray(cookies) || cookies.length === 0) return fallback();
-                        const iw = cookies.filter((c) => c && c.domain && String(c.domain).indexOf("iwara.tv") >= 0);
-                        const listSrc = iw.length > 0 ? iw : cookies;
-                        const list = listSrc
-                            .map((c) => (c && c.name) ? c.name + "=" + (c.value || "") : "")
-                            .filter(Boolean);
-                        const text = list.join("; ");
-                        const exps = listSrc.map((c) => toMs(c && c.expirationDate)).filter((n) => n > Date.now());
-                        const cf = listSrc.find((c) => c && c.name === "cf_clearance");
-                        const cfExp = toMs(cf && cf.expirationDate);
-                        const tokenExp = jwtExpMs(ls("token"));
-                        let expiresAt = 0;
-                        if (cfExp) expiresAt = cfExp;
-                        else if (exps.length) expiresAt = Math.min.apply(null, exps);
-                        else if (tokenExp) expiresAt = tokenExp;
-                        else expiresAt = Date.now() + 6 * 3600 * 1000;
-                        resolve({
-                            text,
-                            count: text ? text.split("; ").length : 0,
-                            source: "GM_cookie",
-                            expiresAt,
-                            fetchedAt: Date.now()
-                        });
-                    });
-                    return;
+                if (typeof GM_cookie === "undefined" || !GM_cookie || typeof GM_cookie.list !== "function") {
+                    return fallback("GM_cookie 未定义（Chrome Tampermonkey 读不到 HttpOnly；请用 Violentmonkey 或 Firefox Tampermonkey）");
                 }
-            } catch (e) { log("GM_cookie exception:", e); }
-            fallback();
+                GM_cookie.list({}, (cookies, error) => {
+                    if (error) { log("GM_cookie.list error:", error); return fallback("GM_cookie.list 报错：" + JSON.stringify(error)); }
+                    if (!Array.isArray(cookies)) return fallback("GM_cookie.list 返回非数组");
+                    if (cookies.length === 0) return fallback("GM_cookie.list 返回 0 个（可能未授予 cookie 权限）");
+                    const hit = cookies.filter((c) => c && c.domain && String(c.domain).indexOf("iwara.tv") >= 0);
+                    const listSrc = hit.length > 0 ? hit : cookies;
+                    const list = listSrc.map((c) => (c && c.name) ? c.name + "=" + (c.value || "") : "").filter(Boolean);
+                    const text = list.join("; ");
+                    const exps = listSrc.map((c) => toMs(c && c.expirationDate)).filter((n) => n > Date.now());
+                    const cf = listSrc.find((c) => c && c.name === "cf_clearance");
+                    const cfExp = toMs(cf && cf.expirationDate);
+                    const tokenExp = jwtExpMs(ls("token"));
+                    let expiresAt = 0;
+                    if (cfExp) expiresAt = cfExp;
+                    else if (exps.length) expiresAt = Math.min.apply(null, exps);
+                    else if (tokenExp) expiresAt = tokenExp;
+                    else expiresAt = Date.now() + 6 * 3600 * 1000;
+                    resolve({
+                        text,
+                        count: list.length,
+                        source: "GM_cookie（" + listSrc.length + " 个）",
+                        diag: "OK",
+                        expiresAt,
+                        fetchedAt: Date.now()
+                    });
+                });
+            } catch (e) { log("GM_cookie exception:", e); fallback("GM_cookie 异常：" + (e && e.message || e)); }
         });
     }
 
@@ -300,15 +304,19 @@
         return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
     }
 
+    /** 复制到剪贴板：GM_setClipboard 优先，退 navigator.clipboard。
+     *  【差异取优合并】提示统一走面板内 showToast（gbmd 侧做法，面板里能看见），
+     *  不再用页面级 GM_notification —— 两条提示路径并存时行为不一致（一个在系统通知、一个在面板）。 */
     function copyText(text, okMsg) {
         return new Promise((resolve) => {
+            const done = () => { if (okMsg) showToast(okMsg); resolve(true); };
             try {
                 if (typeof GM_setClipboard === "function") {
                     GM_setClipboard(text, { type: "text", mimetype: "text/plain" });
-                    notify(okMsg); resolve(true); return;
+                    done(); return;
                 }
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).then(() => { notify(okMsg); resolve(true); }, () => resolve(false));
+                    navigator.clipboard.writeText(text).then(done, () => resolve(false));
                     return;
                 }
             } catch (_) {}
@@ -353,9 +361,12 @@
         return { ok: true, cred: r.json };
     }
 
-    /** 把 Cookie 项逐个写进当前域（document.cookie；HttpOnly 项 GM_cookie.set 兜底）。 */
+    /** 把 Cookie 项写回浏览器：document.cookie 写当前域，GM_cookie.set 兜底 HttpOnly 项。
+     *  【差异取优合并】站点可能有多个域（如 gamebanana.com 与 www.gamebanana.com 要双写），
+     *  域列表取配置 SITE_DOMAINS（逗号分隔）；单域项目照常工作（gbmd 侧的多域写法下沉到内核）。 */
     function applyCookieToBrowser(cookieText) {
         const items = String(cookieText || "").split(";").map((s) => s.trim()).filter((p) => p && !/^=/.test(p) && !/deleted/i.test(p));
+        const hosts = String("www.iwara.tv,iwara.tv").split(",").map((s) => s.trim()).filter(Boolean);
         let written = 0;
         for (const item of items) {
             const eq = item.indexOf("=");
@@ -364,11 +375,13 @@
             const value = item.slice(eq + 1).trim();
             if (!name || !value) continue;
             try { document.cookie = name + "=" + value + "; path=/"; written++; } catch (_) {}
-            // HttpOnly（如 cf_clearance）document.cookie 写不进，用 GM_cookie.set 兜底
+            // HttpOnly（如 cf_clearance / sess / rmc）document.cookie 写不进，用 GM_cookie.set 逐域兜底
             if (typeof GM_cookie !== "undefined" && GM_cookie && typeof GM_cookie.set === "function") {
-                try {
-                    GM_cookie.set({ url: location.origin + "/", name, value, path: "/" }, () => {});
-                } catch (_) {}
+                for (const host of hosts) {
+                    try {
+                        GM_cookie.set({ url: "https://" + host + "/", name, value, path: "/" }, () => {});
+                    } catch (_) {}
+                }
             }
         }
         return written;

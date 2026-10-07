@@ -5,6 +5,9 @@
     "icon": "favicon.png",
     "displayTitle": "Iwara<br>Video<br>Downloader"
   },
+  "commands": [
+    "node \"$SETUP_TEMPLATE_ROOT/scripts/build-userscript.js\" \"$SETUP_TEMPLATE_ROOT/templates/_downloader/_iwara/userscript\" scripts/iwara-cred-fetch.user.js"
+  ],
   "files": {
     "templates/_downloader/test/helpers/routes-collect.cjs": "test/helpers/routes-collect.cjs",
     "templates/_downloader/test/helpers/test-log.cjs": "test/helpers/test-log.cjs",
