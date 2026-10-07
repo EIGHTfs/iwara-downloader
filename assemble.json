@@ -12,6 +12,7 @@
     "templates/_downloader/_iwara/test/play-record.cjs": "test/play-record.cjs",
     "templates/_downloader/_iwara/test/play-test.cjs": "test/play-test.cjs",
     "templates/_downloader/_iwara/test/test-author-avatar.cjs": "test/test-author-avatar.cjs",
+    "templates/_downloader/_iwara/test/verify-api-http-guard.cjs": "test/verify-api-http-guard.cjs",
     "templates/js/partial-refresh.js": "server/public/partial-refresh.js",
     "templates/_downloader/html/auto-update-card.html": "server/public/fragments/auto-update-card.html",
     "templates/_downloader/html/browse-mask.html": "server/public/fragments/browse-mask.html",

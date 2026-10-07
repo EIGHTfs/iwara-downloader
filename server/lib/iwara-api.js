@@ -59,7 +59,15 @@ function getXVersion(urlString) {
 // ---------- 请求头 ----------
 /** 发给 Iwara 的 Cookie：丢掉 deleted / 空值。IP 直连 + 精简 UA 不依赖 cf_clearance；残 Cookie 才可能害事。 */
 function cookieForRequest(raw) {
-  const ck = String(raw || "").trim();
+  // ⚠️ 必须先清洗控制字符：Cookie 值里混入的换行/制表符（油猴回传的组合文本、
+  // 手工粘贴的多行内容都可能带）会让 https.request() 直接同步抛 ERR_INVALID_CHAR，
+  // 请求还没发出就失败——且旧实现此时超时定时器已建、req 尚未赋值，定时器回调
+  // 引用未初始化的 req 会抛 ReferenceError 把整个进程带崩（2026-10-08 线上崩溃根因）。
+  // 处理：换行/制表按 RFC 6265 视为「项分隔」（值内不允许出现），其余 C0 控制字符与 DEL 剔除。
+  const ck = String(raw || "")
+    .replace(/[\r\n\t]+/g, "; ")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+    .trim();
   if (!ck) return "";
   return ck.split(";").map((s) => s.trim()).filter((p) => {
     if (!p) return false;
@@ -115,11 +123,16 @@ function httpsJson(url, opts = {}) {
       if (payload && isPost) headers["Content-Type"] = headers["Content-Type"] || "application/json";
 
       if (timer) clearTimeout(timer);
+      // 超时兜底：req 必须先声明、后进闭包。旧写法把 const req 放在 setTimeout 之后——
+      // 一旦 https.request() 同步抛错（典型：header 含控制字符 → ERR_INVALID_CHAR），
+      // 异常抛出时定时器已建且不会走到 done() 的清理，稍后回调访问处于 TDZ 的 req
+      // 抛 ReferenceError（未捕获）→ 整个 Node 进程退出。2026-10-08 线上崩溃根因。
       timer = setTimeout(() => {
-        req.destroy(new Error("超时: " + url));
+        try { if (req) req.destroy(new Error("超时: " + url)); } catch (_) {}
       }, timeoutMs);
 
-      const req = https.request(
+      let req = null;
+      try { req = https.request(
         {
           host: getCfIp(),
           port: u.port || 443,
@@ -158,7 +171,7 @@ function httpsJson(url, opts = {}) {
           };
           collect(res);
         }
-      );
+      ); } catch (e) { if (timer) clearTimeout(timer); return done(e); }
       req.on("error", (e) => {
         if (timer) clearTimeout(timer);
         const netErr = e instanceof TypeError || /ECONNRESET|ETIMEDOUT|ENOTFOUND|EPIPE|socket hang up|超时/i.test(String(e.message || ""));
@@ -920,4 +933,7 @@ async function getVideoState(id) {
   };
 }
 
-module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, unfollowUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp };
+module.exports = { getXVersion, checkLogin, getVideoInfo, getVideoState, listVideos, getUserProfile, getComments, ensureAccessToken, listFollowing, listFollowingPage, listLikedAll, syncFollowedAll, likeVideo, unlikeVideo, followUser, unfollowUser, autoLikeFollow, thumbnailUrl, fetchThumbnail, fetchAvatar, getThumbMeta, isIwaraPlaceholder, API_HOST, DEFAULT_UA, getCfIp,
+  // 下划线前缀 = 测试专用内部导出（供 test/verify-api-http-guard.cjs 直接驱动真实实现，
+  // 而非在测试里复制一份逻辑；业务代码不要引用这两个名字）。
+  _httpsJson: httpsJson, _cookieForRequest: cookieForRequest };
