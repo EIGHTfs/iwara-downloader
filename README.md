@@ -241,6 +241,7 @@ aria2 进程自己做 DNS。若本机 DNS 污染 iwara 子域，需在 **aria2 �
 
 | 版本 | 内容 |
 |---|---|
+| 1.7.26（未升版） | **同步模板：登录响应回传 token + 面板文案分流** —— 脚本管理器（Tampermonkey/Violentmonkey）默认隐藏响应头 `Set-Cookie`，旧逻辑要求解析到它才算登录成功 → 密码正确也报失败。现 `POST /api/login`（`server/route/routes-auth.js`）在响应体回传 `token` + `cookieName`，脚本按「响应体 token → Set-Cookie → GM_cookie → `/api/status` authed 兜底」取会话；面板把「有凭证但会话失效」与「未配置凭证」分开显示。`scripts/iwara-cred-fetch.user.js` 重新生成；另同步 `server/public/login.html` 的 `theme-init.js`（登录页跟随已选主题） |
 | 1.7.25（未升版） | **同步模板：自动更新间隔治理 + 失败退避** —— `github` 模式默认间隔 300 → **3600 秒（1 小时）**；连续失败按设定值 ×2 退避（最多 3 次：1h→2h→4h→8h，成功后立即复位）；三种模式的区别写进前端下拉与卡片说明；间隔统一钳制到 `[30, 86400]`。验证脚本 `test/auto-update-interval.test.cjs`（13 项）+ `test/auto-update-backoff.test.cjs`（10 项）全通过 |
 | 1.7.24（未升版） | **同步模板：自动更新不再排除 `server/boot.cjs`** —— 使该文件的进程级异常兜底（`uncaughtException` / `unhandledRejection`）能经自动更新下发（此前实测被 `跳过(排除)` 拦住）。部署端已确认 `server/boot.cjs` 含兜底、`server/update/auto-update.js` 的排除数归 0 |
 | 1.7.23（未升版） | **内核补齐 `toMs()` / `jwtExpMs()` 后重新生成脚本**：这两个工具函数原本只在本项目片段里定义，却被模板内核 `readCookieGM` 调用——gbmd 接入时直接 `ReferenceError: jwtExpMs is not defined`。已上提到 `templates/userscript/cookie-fetch/20-core.js` 并从本项目片段删除重复定义，`scripts/iwara-cred-fetch.user.js` 相应重新生成。验证：端到端回归 5/5（退出码 0） |
