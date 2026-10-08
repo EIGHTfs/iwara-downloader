@@ -291,17 +291,56 @@
         if (!base) return { ok: false, error: "地址无效", base };
         const r = await gmRequest("GET", base + "/api/status", undefined, 4000);
         if (r.ok && r.json && r.json.ok) return { ok: true, status: r.json, base };
-        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status), base };
+        // 兜底文案说清「连上了但响应不合预期」，别只报 HTTP 200 让人误以为成功
+        return { ok: false, error: (r.json && r.json.error) || r.error || ("服务器响应异常（HTTP " + r.status + "，非 /api/status 预期 JSON）"), base };
+    }
+
+    /** 用 GM_cookie 读服务器会话 cookie（部分管理器不支持 GM_cookie，返回空串） */
+    function readServerSession(base) {
+        return new Promise((resolve) => {
+            try {
+                if (typeof GM_cookie === "undefined" || !GM_cookie || typeof GM_cookie.list !== "function") return resolve("");
+                GM_cookie.list({ url: base }, (cookies, error) => {
+                    if (error || !Array.isArray(cookies)) return resolve("");
+                    const hit = cookies.find((c) => /session$/i.test(String(c.name || "")));
+                    resolve(hit ? hit.name + "=" + hit.value : "");
+                });
+            } catch (_) { resolve(""); }
+        });
     }
 
     async function serverLogin(base, password) {
         const r = await gmRequest("POST", base + "/api/login", { password }, 8000);
-        if (r.ok && r.setCookie) return { ok: true, session: r.setCookie };
+        // ── 2026-10-08 修 bug ──────────────────────────────────────────────
+        // 现象：服务器设了密码时，油猴面板「添加密码」后报
+        //   「❌ 服务器设有密码：HTTP 200（在上方填访问密码）」，密码明明是对的。
+        // 根因：旧逻辑要求从**响应头解析 Set-Cookie** 才算登录成功；而脚本管理器
+        //   （Tampermonkey/Violentmonkey）默认隐藏响应头的 Set-Cookie → r.setCookie 永远为空
+        //   → 密码正确也被判失败（服务端此时确实返回 200 + {ok:true}）。
+        // 修法：会话按优先级取，任何一种拿得到就算成功——
+        //   ① 响应体里的 token + cookieName（服务端 /api/login 已回传，任何管理器都拿得到）
+        //   ② 响应头 Set-Cookie（少数管理器可见）
+        //   ③ GM_cookie 读服务器会话 cookie（Violentmonkey / Firefox Tampermonkey）
+        //   ④ 都不行：裸请求 /api/status，若 authed=true 说明浏览器 cookie jar 已带上会话
         if (r.status === 401) return { ok: false, error: "密码错误（服务器访问密码不对）" };
-        // 登录 2xx 却拿不到会话 cookie：多半是服务端换了会话 cookie 名或响应头格式变了，
-        // 明确报出来，别让它退化成含糊的「HTTP 200」。
-        if (r.ok) return { ok: false, error: "登录成功但未取到会话 cookie（服务端会话名可能已变，请更新脚本）" };
-        return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
+        if (!r.ok) return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
+        const j = r.json || {};
+        let session = "";
+        if (j.token) session = (j.cookieName || "session") + "=" + j.token;
+        if (!session && r.setCookie) session = r.setCookie;
+        if (!session) session = await readServerSession(base);
+        if (session) return { ok: true, session };
+        const st = await gmRequest("GET", base + "/api/status", undefined, 4000);
+        if (st.ok && st.json && st.json.authed) return { ok: true, session: "" };
+        return { ok: false, error: "登录成功但拿不到会话：脚本管理器隐藏了 Set-Cookie，且服务端未回传 token（请把服务端与脚本都更新到同一版本）" };
+
+        // ── 旧逻辑（保留备查，勿删）──────────────────────────────────────
+        // if (r.ok && r.setCookie) return { ok: true, session: r.setCookie };
+        // if (r.status === 401) return { ok: false, error: "密码错误（服务器访问密码不对）" };
+        // // 登录 2xx 却拿不到会话 cookie：多半是服务端换了会话 cookie 名或响应头格式变了，
+        // // 明确报出来，别让它退化成含糊的「HTTP 200」。
+        // if (r.ok) return { ok: false, error: "登录成功但未取到会话 cookie（服务端会话名可能已变，请更新脚本）" };
+        // return { ok: false, error: (r.json && r.json.error) || r.error || ("HTTP " + r.status) };
     }
 
     /** 复制到剪贴板：GM_setClipboard 优先，退 navigator.clipboard。
