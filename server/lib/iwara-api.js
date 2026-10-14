@@ -161,7 +161,26 @@ function httpsJson(url, opts = {}) {
               const finish = (finalBuf) => {
                 const text = finalBuf.toString("utf8");
                 if (res.statusCode === 403) {
-                  return done(new Error("CF_CHALLENGE:" + (text.includes("Just a moment") ? "cloudflare js challenge" : "http 403")));
+                  // 2026-10-14 修复：**403 不一定是 Cloudflare 挑战**。
+                  // 实测：iwara 对「已设为私有/不可用」的视频同样返回 403，但响应体是**业务 JSON**：
+                  //   {"message":"errors.privateVideo","data":{"user":{...,"name":"NJC","username":"njc_609"}}}
+                  // 旧实现只看 "Just a moment" 字样，把这类业务错误一律标成 CF_CHALLENGE:http 403，
+                  // 把排查方向误导到「CF/鉴权」上（用户看到的是作者名 NJC，还以为是 CDN 子域）。
+                  // 新逻辑：先尝试把响应体解析成带 message 的 JSON ⇒ 报业务原因（可操作）；
+                  //         只有**非 JSON**（真正的挑战页/WAF 页）才按 CF 挑战处理。
+                  // 原实现（保留痕迹便于回退）：
+                  //   return done(new Error("CF_CHALLENGE:" + (text.includes("Just a moment") ? "cloudflare js challenge" : "http 403")));
+                  let bizMessage = "";
+                  try {
+                    const j = JSON.parse(text);
+                    if (j && typeof j.message === "string" && j.message) bizMessage = j.message;
+                  } catch (_) {}
+                  if (bizMessage) {
+                    return done(new Error("IWARA_API:" + bizMessage + "（HTTP 403，非 Cloudflare 挑战）"));
+                  }
+                  const looksCf = /Just a moment|cloudflare|cf-chl|Attention Required/i.test(text) || !text.trim();
+                  return done(new Error("CF_CHALLENGE:" + (looksCf ? "cloudflare js challenge" : "http 403") +
+                    (text ? " | body: " + text.replace(/\s+/g, " ").slice(0, 160) : " | body 空")));
                 }
                 if (res.statusCode === 204 || res.statusCode === 201) return done(null, text ? (() => { try { return JSON.parse(text); } catch (_) { return null; } })() : null);
                 if (res.statusCode >= 400) {
