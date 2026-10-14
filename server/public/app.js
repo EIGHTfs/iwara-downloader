@@ -36,6 +36,37 @@ async function ensureLikedMeta() {
   if (!likedMetaLoaded) await refreshLikedMeta();
 }
 
+// 会话 cookie 兜底（2026-10-14 实测故障）：
+//   Cookie 按 host 隔离且不看端口 —— 同一台机器换地址打开（多网卡 IP / 主机名 / 异地组网）
+//   就带不上 cookie，前端一遇 401 便跳登录页，表现为「刚登录又要登录」。
+//   服务端 extractToken() 本就支持 Authorization: Bearer（server/auth/auth.js），
+//   故登录时存下服务端返回的 token（见共享 login.js），此后同源 /api 请求自动补上。
+const AUTH_TOKEN_KEY = "auth-token";
+function readAuthToken() {
+  try { return localStorage.getItem(AUTH_TOKEN_KEY) || ""; } catch (_) { return ""; }
+}
+function saveAuthToken(t) {
+  try { t ? localStorage.setItem(AUTH_TOKEN_KEY, t) : localStorage.removeItem(AUTH_TOKEN_KEY); } catch (_) {}
+}
+(function wrapFetchForAuth() {
+  const orig = window.fetch;
+  if (typeof orig !== "function") return;
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      const sameOrigin = url.startsWith("/") || url.startsWith(location.origin);
+      if (sameOrigin && url.indexOf("/api/") !== -1) {
+        const t = readAuthToken();
+        if (t) {
+          init = Object.assign({}, init || {});
+          init.headers = Object.assign({}, init.headers || {}, { Authorization: "Bearer " + t });
+        }
+      }
+    } catch (_) { /* 兜底失败不影响原请求 */ }
+    return orig.call(this, input, init);
+  };
+})();
+
 async function api(path, method = "GET", body) {
   const opts = { method, headers: {}, credentials: "same-origin" };
   if (body !== undefined) {
@@ -1136,6 +1167,8 @@ function bindTheme() {
 function bindLogout() {
   $("#logoutBtn").addEventListener("click", async () => {
     try { await api("/api/logout", "POST", {}); } catch (_) {}
+    // 2026-10-14：登出时一并清掉本地 token，否则 Bearer 兜底会把刚登出的会话又「自动登录」回来
+    saveAuthToken("");
     location.href = "/login.html";
   });
 }

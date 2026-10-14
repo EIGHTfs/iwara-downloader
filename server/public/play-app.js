@@ -2,6 +2,30 @@
 // 播放地址短链 /{id}、artplayer 实例、播放列表、封面切换
 "use strict";
 
+// ── 会话 cookie 兜底（2026-10-14）─────────────────────────────
+// Cookie 按 host 隔离且不看端口：换访问地址（多网卡 IP / 主机名 / 异地组网）就带不上，
+// 一遇 401 便跳登录页。服务端 extractToken() 支持 Authorization: Bearer，故补上本地 token。
+// 本文件请求点很多（/api/index、/api/video-state、/api/like…），统一在此包装一次，避免逐个改。
+(function wrapFetchForAuth() {
+  const orig = window.fetch;
+  if (typeof orig !== "function") return;
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      const sameOrigin = url.startsWith("/") || url.startsWith(location.origin);
+      if (sameOrigin && url.indexOf("/api/") !== -1) {
+        let t = "";
+        try { t = localStorage.getItem("auth-token") || ""; } catch (_) {}
+        if (t) {
+          init = Object.assign({}, init || {});
+          init.headers = Object.assign({}, init.headers || {}, { Authorization: "Bearer " + t });
+        }
+      }
+    } catch (_) { /* 兜底失败不影响原请求 */ }
+    return orig.call(this, input, init);
+  };
+})();
+
 // ═══ 播放地址：/{id} ═══
 // 需求：地址栏应只显示短链形式 http://nas.local:28463/lwpDY67t95gnCK，而不是含 play.html#id= 的长链 http://nas.local:28463/play.html#id=lwpDY67t95gnCK
 // 【原代码】#id= / ?id= / play.html#id=
