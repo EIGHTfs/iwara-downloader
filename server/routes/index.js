@@ -42,16 +42,19 @@ module.exports = function register(api) {
   route("GET", "/api/index/export", (req, res) => {
     const c = cfg.readConfig();
     const buf = videoIndex.catalogFileBuffer(c.downloadPath);
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="iwara-index-${new Date().toISOString().slice(0, 10)}.json"`);
+    // 导出即索引本身：JSONL（一行一条）+ x-ndjson，与磁盘 json/index/iwara-index.jsonl 同格式
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="iwara-index-${new Date().toISOString().slice(0, 10)}.jsonl"`);
     return res.end(buf);
   });
 
   // POST /api/index/import（需鉴权）
+  //   接受：① 导出的 JSONL 原文（`{json:"<文本>"}` 或直接 POST 原文，整体不是合法 JSON 时 readBody 会回传原文）
+  //        ② 旧的 JSON（`{videos:...}` / `{items:[...]}` / `{dump:...}` / 扁平 map）
   route("POST", "/api/index/import", async (req, res) => {
     const c = cfg.readConfig();
     const body = await readBody(req, 64 * 1024 * 1024);
-    const payload = body && (body.videos || body.items || body.dump || body);
+    const payload = body && (body.videos || body.items || body.dump || body.json || body);
     try {
       return sendJson(res, 200, videoIndex.importPayload(c.downloadPath, payload));
     } catch (e) {

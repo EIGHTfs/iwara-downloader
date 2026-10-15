@@ -230,6 +230,24 @@ loggedTest(log, "iwara profile：只迁总表（sidecar 不动），扁平与包
   });
 });
 
+loggedTest(log, "parseAnyJson / pickRecordArray：导入端能吃回自己导出的 JSONL，也兼容旧 JSON", () => {
+  // 导出格式：一行 meta + 一行一条
+  const jsonl = '{"_":"meta","schema":2,"kind":"search-records"}\n{"modId":"1"}\n{"modId":"2"}\n';
+  const a = store.parseAnyJson(jsonl);
+  assert.deepEqual(a, [{ modId: "1" }, { modId: "2" }], "应跳过 meta 行，只取数据行");
+  assert.deepEqual(store.pickRecordArray(a), [{ modId: "1" }, { modId: "2" }], "数组原样取用");
+  // 旧 JSON 形态继续可导入
+  assert.deepEqual(store.pickRecordArray(store.parseAnyJson('{"results":[{"modId":"9"}]}')), [{ modId: "9" }]);
+  assert.deepEqual(store.pickRecordArray(store.parseAnyJson('[{"modId":"8"}]')), [{ modId: "8" }]);
+  assert.deepEqual(store.pickRecordArray(store.parseAnyJson('{"records":[{"modId":"7"}]}')), [{ modId: "7" }]);
+  // 边界：空文本 / 坏行 / 找不到记录数组
+  assert.equal(store.parseAnyJson(""), null);
+  assert.equal(store.parseAnyJson(null), null);
+  assert.deepEqual(store.parseAnyJson('{"_":"meta"}\n{坏行}\n{"ok":1}'), [{ ok: 1 }], "坏行跳过、meta 跳过");
+  assert.equal(store.pickRecordArray({ nope: 1 }), null);
+  assert.equal(store.pickRecordArray("字符串"), null);
+});
+
 loggedTest(log, "run：缺参数/未知 profile 时安全返回（不抛错，供启动流程直接调用）", () => {
   const bad = mig.run({ dir: "/tmp", profile: "nope" });
   assert.equal(bad.ok, false);
