@@ -1291,16 +1291,6 @@ function bindSettingsFields() {
 //   - 每张功能卡自己的「保存」按钮只提交本卡字段（服务端按字段增量更新）
 //   - 底部「保存设置」兼容保留（提交全部字段，行为与旧版一致）
 // 模板缺 {ID} 时返回 null（调用方负责报错）——仅路径与命名卡校验。
-function readSettingsForm() {
-  return Object.assign(
-    { fileNameTemplate: $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "") },
-    readPathSettings(),
-    readLikedSettings(),
-    readPlaySettings(),
-    readBackendSettings(),
-    readCredSettings()
-  );
-}
 // 路径与命名卡：downloadPath / fileNameTemplate（校验 {ID}）
 function readPathSettings() {
   const tpl = $("#set-fileNameTemplate").value.trim().replace(/\.(mp4|webm|mov|mkv|m4v)$/i, "");
@@ -1347,23 +1337,9 @@ function readCredSettings() {
 }
 
 // 保存成功后的收尾：清空凭证输入框（改提示语）、回填、状态与刷新
-function afterSettingsSaved(r) {
-  const cookieEl = $("#cookieInput");
-  if (cookieEl) {
-    cookieEl.value = "";
-    cookieEl.placeholder = "已保存（再贴新凭证才会覆盖；留空不改）";
-    cookieEl.dataset.filled = "1";
-  }
-  fillSettings(r.settings);
-  setStatus($("#settingsStatus"), "已保存凭证与设置", "ok");
-  // 2026-09-01 保存反馈改悬浮窗
-  showToast("✅ 已保存设置", "ok");
-  if (kwType() === "users") loadFollowingUsers();
-  refreshIwaraBadge();
-}
-
 // 每卡片小保存（2026-09-28）：路径/点赞/播放/后端/凭证各卡独立保存按钮，
-// 只提交本卡字段（服务端按字段增量更新，不覆盖其它卡）；底部统一保存兼容保留。
+// 只提交本卡字段（服务端按字段增量更新，不覆盖其它卡）。
+// 2026-10-15：移除底部「保存设置」统一按钮 —— 各卡已即时保存，该按钮是多余入口。
 function bindSettingsSave() {
   // 通用绑定器：按钮 + 分组读取函数 + 状态元素 + 成功后回调
   function bindCard(btnId, readFn, statusId, onOk) {
@@ -1396,25 +1372,8 @@ function bindSettingsSave() {
   bindCard("saveBackendBtn", readBackendSettings, "backendStatus");
   bindCard("saveCookieBtn", readCredSettings, "cookieStatus", afterCredSaved);
 
-  // 底部统一保存（兼容旧行为：提交全部字段）
-  const saveBtn = $("#saveSettingsBtn");
-  if (!saveBtn) return;
-  saveBtn.addEventListener("click", async () => {
-    try {
-      const body = readSettingsForm();
-      if (!body) {
-        showToast("文件名模板必须含 {ID}", "err");
-        setStatus($("#settingsStatus"), "文件名模板必须含 {ID}，封面和 json 靠这个 id 对视频", "err");
-        return;
-      }
-      const r = await api("/api/settings", "POST", body);
-      if (!r.ok) throw new Error(r.error || "保存失败");
-      afterSettingsSaved(r);
-    } catch (e) {
-      setStatus($("#settingsStatus"), e.message, "err");
-      showToast("❌ 保存失败：" + e.message, "err");
-    }
-  });
+  // 2026-10-15：移除页面底部「保存设置」统一按钮的绑定 —— 各卡片已各自即时保存（见上），
+  //   该按钮提交全部字段属于重复入口，其专用读取函数 readSettingsForm 与回调 afterSettingsSaved 一并移除。
 }
 
 // 卡片保存后的收尾：回填设置（凭证卡走 afterCredSaved 单独处理清空）
