@@ -30,6 +30,12 @@ const JSON_DIR = jsonDir.JSON_DIR;
 // 索引放 json/index/，含总表与每个视频的 json
 const INDEX_DIR = path.join(JSON_DIR, "index"); //userdata-manifest.json dir json/index .json 本机视频索引（总表 iwara-index.json + 每条 <id>.json）
 const SIDECAR_CACHE = INDEX_DIR;
+// 2026-10-15：总表存储格式改为 JSONL（双读：.jsonl 优先、回落旧 .json）。
+//   通用读写/迁移在 server/lib/jsonl-store.js（模板下发件）。
+//   **只改总表**：逐条 <id>.json sidecar 与 json/profile/ 保持原格式不动（它们按单文件被单独服务，
+//   改格式没有收益、反而增加对外契约风险）。
+const jsonlStore = require("./jsonl-store");
+const CATALOG_BASE = CATALOG_NAME.replace(/\.json$/, ""); // "iwara-index"（不带后缀的基路径）
 
 function sidecarKey(id) {
   const cfg = require("../config").readConfig();
@@ -104,6 +110,51 @@ function isWritableDir(dir) {
 function serverCatalogPath() {
   migrateIndexDir();
   return path.join(INDEX_DIR, CATALOG_NAME);
+}
+
+/** 总表的「基路径」（不带后缀）：存储层据此在 .jsonl / .json 之间选择 */
+function serverCatalogBase() {
+  migrateIndexDir();
+  return path.join(INDEX_DIR, CATALOG_BASE);
+}
+
+let catalogMigrated = false;
+/**
+ * 把旧的 json/index/iwara-index.json 一次性迁成 .jsonl（独立脚本 scripts/migrate-json-index-to-jsonl.cjs，
+ * profile=iwara 只匹配总表，sidecar 与 profile 一律不动）。
+ *   幂等：已有 .jsonl 就跳过；可回滚：旧文件移入 json/index/.trash/。
+ *   必须同步跑在读取之前：异步执行时迁移期间新落的总表会先建出只含新记录的 .jsonl，
+ *   而迁移脚本见目标已存在即跳过 ⇒ 下次加载以 .jsonl 为准 ⇒ 旧总表丢失。
+ * @returns {{ok:boolean, converted?:number, skipped?:number, failed?:number, errors?:Array, error?:string}|null}
+ */
+function migrateCatalogToJsonl() {
+  if (catalogMigrated) return null;   // 每进程只跑一次
+  catalogMigrated = true;
+  try {
+    migrateIndexDir();
+    const mig = require(path.join(__dirname, "..", "..", "scripts", "migrate-json-index-to-jsonl.cjs"));
+    const r = mig.run({ dir: INDEX_DIR, profile: "iwara", dryRun: false });
+    if (r && r.converted) console.log(`[video-index] 总表已迁移为 JSONL：转换 ${r.converted} 个文件（旧文件在 json/index/.trash/）`);
+    if (r && r.errors && r.errors.length) console.log(`[video-index] 总表迁移有 ${r.errors.length} 项未成功：` + r.errors.slice(0, 3).join(" | "));
+    return r;
+  } catch (e) {
+    // 脚本缺失/异常都不能拦住读取：读层本身兼容旧格式，没迁移也能正常跑
+    return { ok: false, error: String((e && e.message) || e) };
+  }
+}
+
+/** 读某个根目录下的总表（双读：.jsonl 优先，回落旧 .json）→ 普通对象 { [id]: entry } */
+function readCatalogAt(root) {
+  const rec = jsonlStore.readIndex(path.join(root, CATALOG_BASE));
+  if (rec.format === "jsonl") {
+    // 必须转成**普通对象**返回（不能直接返回 Map）：loadCatalogMap 用 Object.assign 合并多个根，
+    //   而 Map 的条目不是自有可枚举属性，Object.assign 只会复制出一个空对象（会导致读总表得到 {}）。
+    const out = {};
+    for (const [k, v] of jsonlStore.mapOf(rec.records, "video")) out[k] = v;
+    return out;
+  }
+  if (rec.format === "json") return parseIndexPayload(rec.json);
+  return {};
 }
 
 /** 本机总表只在 json/index/；下载根目录不再落 iwara-index.json。 */
@@ -356,27 +407,34 @@ function writeJson(file, obj) {
 }
 
 function loadCatalogMap(root) {
+  migrateCatalogToJsonl();      // 一次性迁移：同步、先于读取（幂等；旧文件进 .trash 可回滚）
   const map = {};
   for (const r of catalogRoots(root)) {
-    Object.assign(map, parseIndexPayload(readJson(catalogPath(r))));
+    Object.assign(map, readCatalogAt(r));
   }
   return map;
 }
 
 function saveCatalogMap(root, map) {
   // 只写总表。每条 json/index/<id>.json 由 recordDownload / import 增量写，对照 gbmd ingestModDir。
-  const videos = {};
+  //   落盘格式改为 JSONL（原子写）；对外仍是扁平 { [id]: entry }，序列化由 catalogFileBuffer 负责。
+  const records = [];
+  for (const [id, e] of Object.entries(map || {})) {
+    if (!id || !e) continue;
+    records.push({ t: "video", k: String(id), v: e });
+  }
   migrateIndexDir();
-  for (const [id, e] of Object.entries(map)) videos[id] = e;
-  writeJson(serverCatalogPath(), videos);
+  const w = jsonlStore.writeIndexAtomic(serverCatalogBase(), { schema: 2 }, records);
+  return w.ok;
 }
 
 function patchCatalog(id, entry) {
   if (!id || !entry) return;
   migrateIndexDir();
-  const map = parseIndexPayload(readJson(serverCatalogPath()));
+  migrateCatalogToJsonl();
+  const map = readCatalogAt(INDEX_DIR);
   map[id] = entry;
-  writeJson(serverCatalogPath(), map);
+  return saveCatalogMap(INDEX_DIR, map);
 }
 
 function writeSidecar(videoPath, id, entry) {
@@ -512,7 +570,7 @@ function readEntry(id) {
   migrateIndexDir();
   const fromSidecar = parseIndexPayload(readJson(path.join(INDEX_DIR, vid + ".json")));
   if (fromSidecar[vid]) return fromSidecar[vid];
-  const map = parseIndexPayload(readJson(serverCatalogPath()));
+  const map = readCatalogAt(INDEX_DIR);
   return map[vid] || null;
 }
 
