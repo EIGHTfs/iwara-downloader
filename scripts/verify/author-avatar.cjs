@@ -4,10 +4,10 @@
 // 验证链路：/api/play-info → avatar 字段 → avatar 文件可访问 →
 //   前端真实脚本语义渲染（jsdom 以 <script> 方式加载真实 play.html body +
 //   play-list/play-enhance/play-app 三件套）→ 断言 #author 渲染 <img class="author-avatar">
-// 用法：
-//   node test-author-avatar.cjs <BASE_URL> <VIDEO_ID> [--old-html <旧play.html>] [--new-js <新play-app.js>]
+// 用法（手工验证脚本：需真实跑起来的服务和视频 id，不在 node --test 的自动范围）：
+//   node scripts/verify/author-avatar.cjs <BASE_URL> <VIDEO_ID> [--old-html <旧play.html>] [--new-js <新play-app.js>]
 // 示例：
-//   node test-author-avatar.cjs http://127.0.0.1:8643 QML6BlAS2fOyN9
+//   node scripts/verify/author-avatar.cjs http://127.0.0.1:8643 QML6BlAS2fOyN9
 // ═══════════════════════════════════════════════════════════════
 "use strict";
 

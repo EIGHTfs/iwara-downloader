@@ -208,7 +208,7 @@ PID 文件：项目根 `iwara-downloader-server.pid`（不入库）。
 - **官方 avatar=null 的作者**（如 jk4、hannana298）：本地索引 avatar 为空是**正确行为**，不是漏下载——官方 `GET /profile/{u}` 的 `user.avatar` 就是 null。前端不渲染头像，页面作者区只显示名字。
 - **官方后上传头像不自动刷新**：因「文件已存在且 name 没变就跳过」，若某作者先以无头像建了索引、官方后来才上传头像，本地不会自动补拉。需删除 `json/profile/<username>.json` 或等 name 变化才会重查。
 - **头像文件缺失但索引有值**：`saveAvatarFile` 下载失败（网络 / 官方 404）时索引仍会写入 avatar 路径，但 `avatarExists` 校验失败 → play-info 返回空 → 前端不渲染，不影响其它功能。
-- 前端脚本语义验证：`test/test-author-avatar.cjs` 以 jsdom `<script>` 内联方式（真实浏览器 script 语义，非 `win.eval`）加载真实 `play.html` body + `play-list.js` / `play-enhance.js` / `play-app.js` 三件套，断言 `#author` 渲染 `<img class="author-avatar">` 且无 JS 报错；新旧项目 `renderAuthor` 同数据渲染对比。
+- 前端脚本语义验证：`scripts/verify/author-avatar.cjs` 以 jsdom `<script>` 内联方式（真实浏览器 script 语义，非 `win.eval`）加载真实 `play.html` body + `play-list.js` / `play-enhance.js` / `play-app.js` 三件套，断言 `#author` 渲染 `<img class="author-avatar">` 且无 JS 报错；新旧项目 `renderAuthor` 同数据渲染对比。
 
 ---
 
