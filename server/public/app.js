@@ -735,10 +735,10 @@ function bindSearchExportImport() {
       const blob = await r.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "iwara-search-records-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.download = "iwara-search-records-" + new Date().toISOString().slice(0, 10) + ".jsonl";
       a.click();
       URL.revokeObjectURL(a.href);
-      setStatus($("#searchStatus"), "已导出搜索记录 JSON", "ok");
+      setStatus($("#searchStatus"), "已导出搜索记录 JSONL", "ok");
     } catch (e) {
       setStatus($("#searchStatus"), "导出失败: " + e.message, "err");
     }
@@ -751,14 +751,10 @@ function bindSearchExportImport() {
     setStatus($("#searchStatus"), "正在导入 " + file.name + " …");
     try {
       const text = await file.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch (_) {}
-      let records = null;
-      if (Array.isArray(json)) records = json;
-      else if (json && Array.isArray(json.results)) records = json.results;
-      else if (json && Array.isArray(json.records)) records = json.records;
-      if (!records) { setStatus($("#searchStatus"), "导入失败: 文件里找不到记录数组（需为 JSON 数组或 {results:[...]}）", "err"); ev.target.value = ""; return; }
-      const r = await api("/api/search/import", "POST", { records });
+      if (!text.trim()) { setStatus($("#searchStatus"), "导入失败: 文件是空的", "err"); ev.target.value = ""; return; }
+      // 搜索记录导出就是 JSONL：原文交给服务端解析（不在浏览器里 JSON.parse —— JSONL 整体不是合法 JSON）。
+      //   服务端同时兼容旧的 JSON 文件（数组 / {results:[…]} / {records:[…]}）。
+      const r = await api("/api/search/import", "POST", { json: text });
       if (!r.ok) throw new Error(r.error || "导入失败");
       const c = await api("/api/search/cache");
       if (c.cache && c.cache.results) { searchResults = c.cache.results; renderSearchResults(); }
@@ -1488,10 +1484,10 @@ function bindSettingsIndex() {
       const blob = await r.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "iwara-index-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.download = "iwara-index-" + new Date().toISOString().slice(0, 10) + ".jsonl";
       a.click();
       URL.revokeObjectURL(a.href);
-      setStatus(st, "已导出 iwara-index.json", "ok");
+      setStatus(st, "已导出 iwara-index.jsonl", "ok");
     } catch (e) {
       setStatus(st, "导出失败: " + (e && e.message || e), "err");
     }
@@ -1504,8 +1500,8 @@ function bindSettingsIndex() {
     setStatus(st, "正在导入 " + file.name + " …");
     try {
       const text = await file.text();
-      const json = JSON.parse(text);
-      const r = await api("/api/index/import", "POST", json);
+      // 索引导出就是 JSONL：原文直接发过去由服务端按 JSONL 解析（不在这里 JSON.parse —— JSONL 整体不是合法 JSON）
+      const r = await api("/api/index/import", "POST", { json: text });
       if (!r.ok) throw new Error(r.error || "导入失败");
       setStatus(st, "导入完成：新增 " + r.added + "，更新 " + r.updated + "，合计 " + r.count, "ok");
     } catch (e) {

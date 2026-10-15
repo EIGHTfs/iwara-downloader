@@ -46,13 +46,14 @@ module.exports = function register(api) {
 
   route("POST", "/api/search/import", async (req, res) => {
     const body = await readBody(req);
-    let records = body && body.records;
-    if (typeof records === "string") {
-      try { records = JSON.parse(records); } catch (_) { return sendJson(res, 400, { ok: false, error: "JSON 解析失败，请上传正确的搜索记录数组" }); }
-    }
-    if (body && body.json && !records) {
-      try { records = JSON.parse(body.json); } catch (_) { return sendJson(res, 400, { ok: false, error: "JSON 解析失败，请上传正确的搜索记录数组" }); }
-    }
+    // 接受四种形态（与导出端同口径）：
+    //   ① {records:"<json|jsonl 文本>"}  ② {json:"<文本>"}  ③ 直接 POST 文本（整体不是合法 JSON 时 readBody 回传原文）
+    //   ④ 旧形态 {records:[…]} / {results:[…]}
+    let raw = body && (body.records !== undefined ? body.records : body.json);
+    if (raw === undefined && typeof body === "string") raw = body;
+    const parsed = typeof raw === "string" ? jsonlStore.parseAnyJson(raw) : raw;
+    const records = jsonlStore.pickRecordArray(parsed);
+    if (!records) return sendJson(res, 400, { ok: false, error: "找不到记录数组（支持 JSONL 导出文件、JSON 数组、{results:[…]}）" });
     return sendJson(res, 200, search.importCache(records));
   });
 
@@ -64,8 +65,19 @@ module.exports = function register(api) {
 
   route("GET", "/api/search/export", (req, res) => {
     const cache = search.exportCache();
-    res.setHeader("Content-Type", "application/json");
-    res.setHeader("Content-Disposition", `attachment; filename="iwara-search-records-${new Date().toISOString().slice(0, 10)}.json"`);
-    return res.end(JSON.stringify(cache, null, 2));
+    // 搜索记录导出 = JSONL（一行 meta + 一行一条），与索引导出同口径：产出与消费同一格式
+    const results = (cache && Array.isArray(cache.results)) ? cache.results : (Array.isArray(cache) ? cache : null);
+    const head = { _: "meta", schema: 2, kind: "search-records" };
+    if (cache && !Array.isArray(cache)) {
+      for (const k of ["startDate", "endDate", "contentFilter", "queryTime", "count", "updatedAt"]) {
+        if (cache[k] !== undefined) head[k] = cache[k];
+      }
+    }
+    const lines = [JSON.stringify(head)];
+    if (results) for (const rec of results) lines.push(JSON.stringify(rec));
+    else lines.push(JSON.stringify(cache));   // 形状未知时整份放进一行，绝不丢数据
+    res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="iwara-search-records-${new Date().toISOString().slice(0, 10)}.jsonl"`);
+    return res.end(lines.join("\n") + "\n");
   });
 };

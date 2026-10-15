@@ -309,10 +309,53 @@ function migrateDir(opts) {
   return out;
 }
 
+/**
+ * 把「可能是 JSON，也可能是 JSONL」的文本解析出来（导入接口用）。
+ *   先按整体 JSON 解析（兼容旧的导出文件）；失败再按 JSONL 逐行解析（跳过空行、坏行、meta 行）。
+ *   用途：索引导出成 JSONL 之后，导入端必须能原样吃回去 —— 产出与消费同一格式。
+ * @returns {any|null} 解析结果；整体 JSON 原样返回；JSONL 返回「数据行数组」；都不成立返回 null
+ */
+function parseAnyJson(text) {
+  const s = String(text == null ? "" : text).trim();
+  if (!s) return null;
+  try { return JSON.parse(s); } catch (_) { /* 不是整体 JSON，继续按 JSONL 试 */ }
+  const out = [];
+  for (const raw of s.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    let obj;
+    try { obj = JSON.parse(line); } catch (_) { continue; }   // 坏行跳过，不因一行废掉整份导入
+    if (obj && typeof obj === "object" && obj[META_FIELD] === META_VALUE) continue;  // meta 行不是数据
+    out.push(obj);
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * 从「JSON 或 JSONL 的解析结果」里取出记录数组 —— 导入端与导出端同口径的取数助手。
+ *   · 本身就是数组 → 原样返回
+ *   · {results:[…]} / {records:[…]} / {items:[…]} → 取该字段
+ *   · 其它 → null（调用方据此报「找不到记录数组」）
+ * 为什么需要它：导出统一成 JSONL（一行一条 + 一行 meta）之后，导入端必须能吃回
+ * 自己导出的文件；旧 JSON 文件（数组或包裹对象）也要继续能导入。
+ * @param {any} v parseAnyJson / JSON.parse 的结果
+ * @param {string[]} [keys] 自定义包裹字段名（默认 results/records/items）
+ * @returns {Array|null}
+ */
+function pickRecordArray(v, keys) {
+  if (Array.isArray(v)) return v;
+  if (!v || typeof v !== "object") return null;
+  const ks = (Array.isArray(keys) && keys.length) ? keys : ["results", "records", "items"];
+  for (const k of ks) if (Array.isArray(v[k])) return v[k];
+  return null;
+}
+
 module.exports = {
   indexPaths,
   parseJsonl,
   stringifyJsonl,
+  parseAnyJson,
+  pickRecordArray,
   readIndex,
   mapOf,
   appendRecords,

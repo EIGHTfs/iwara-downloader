@@ -407,7 +407,9 @@ function writeJson(file, obj) {
 }
 
 function loadCatalogMap(root) {
-  migrateCatalogToJsonl();      // 一次性迁移：同步、先于读取（幂等；旧文件进 .trash 可回滚）
+  // 2026-10-15：不在启动/读取时自动迁移。读层两种格式都吃（.jsonl 优先、回落旧 .json），
+  //   写入只产 .jsonl ⇒ 没迁移过的老部署照样能跑；旧总表 → JSONL 的一次性转换改为人工执行：
+  //     node scripts/migrate-json-index-to-jsonl.cjs --dir json/index --profile iwara --apply
   const map = {};
   for (const r of catalogRoots(root)) {
     Object.assign(map, readCatalogAt(r));
@@ -431,7 +433,6 @@ function saveCatalogMap(root, map) {
 function patchCatalog(id, entry) {
   if (!id || !entry) return;
   migrateIndexDir();
-  migrateCatalogToJsonl();
   const map = readCatalogAt(INDEX_DIR);
   map[id] = entry;
   return saveCatalogMap(INDEX_DIR, map);
@@ -482,7 +483,17 @@ function recordDownload(root, info, item, opts) {
 
 /** 导入别人 dump / 我们自己的图，合并进总表。 */
 function importPayload(root, raw) {
-  const incoming = parseIndexPayload(raw);
+  // 2026-10-15：既接受旧的 JSON（对象/数组/包裹形态），也接受**导出的 JSONL 文本**
+  //   （JSONL 整体不是合法 JSON，会走到这里；由存储层逐行解析）
+  let incoming;
+  if (typeof raw === "string") {
+    const parsed = jsonlStore.parseJsonl(raw);
+    incoming = parsed.records.length
+      ? jsonlStore.mapOf(parsed.records, "video")
+      : parseIndexPayload(jsonlStore.parseAnyJson(raw));
+  } else {
+    incoming = parseIndexPayload(raw);
+  }
   const map = loadCatalogMap(root);
   const r = mergeMap(map, incoming);
   for (const [id, entry] of Object.entries(incoming)) {
@@ -581,9 +592,16 @@ function hasVideo(root, id) {
   return !!map[vid];
 }
 
+// 索引导出：产出与磁盘索引**同格式**的 JSONL（一行一条），不再产出缩进 JSON。
+//   产出与消费必须同一格式：导出什么，导入就吃什么（导入端见 importPayload）。
 function catalogFileBuffer(root) {
   const videos = loadCatalogMap(root);
-  return Buffer.from(JSON.stringify(videos, null, 2), "utf8");
+  const records = [];
+  for (const [id, e] of Object.entries(videos || {})) {
+    if (!id || !e) continue;
+    records.push({ t: "video", k: String(id), v: e });
+  }
+  return Buffer.from(jsonlStore.stringifyJsonl({ schema: 2, shape: "flat" }, records), "utf8");
 }
 
 function mergeMap(target, incoming) {
