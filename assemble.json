@@ -106,6 +106,8 @@
     "templates/_downloader/_iwara/html/scripts-extra.html": "server/public/fragments/scripts-extra.html",
     "templates/js/server/lib/auto-update.js": "server/lib/auto-update.js",
     "templates/js/server/lib/jsonl-store.js": "server/lib/jsonl-store.js",
+    "templates/js/server/lib/task-sqlite-store.js": "server/lib/task-sqlite-store.js",
+    "templates/js/store/state-store.js": "server/store/state-store.js",
     "templates/js/config/brand.js": "server/config/brand.js",
     "templates/_downloader/html/tab-panel/panel-settings/": "server/public/fragments/tab-panel/panel-settings/",
     "templates/_downloader/test/auto-update-interval.test.cjs": "test/auto-update-interval.test.cjs",
