@@ -75,6 +75,11 @@ function openDb(dbPath) {
   // WAL + NORMAL：实测把单次事务提交从 47ms 压到 26–30ms（对索引这种高频小写很关键）
   db.exec("PRAGMA journal_mode=WAL");
   db.exec("PRAGMA synchronous=NORMAL");
+  // 自动 checkpoint 会在**写入线程上同步**执行，实测让单次写入从 136ms 抖到 415ms（3 次里有 2 次）。
+  //   索引的写入是「很多次小写」⇒ 默认 1000 页（≈4MB）太频繁，放宽到 4000 页（≈16MB）；
+  //   同时给 WAL 文件设上限，避免长跑后无限膨胀（超限会在 checkpoint 时截断）。
+  db.exec("PRAGMA wal_autocheckpoint=4000");
+  db.exec("PRAGMA journal_size_limit=33554432");
   db.exec("CREATE TABLE IF NOT EXISTS idx_meta(base TEXT PRIMARY KEY, v TEXT NOT NULL)");
   db.exec(
     "CREATE TABLE IF NOT EXISTS idx_rows(" +
