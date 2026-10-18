@@ -35,6 +35,9 @@ const SIDECAR_CACHE = INDEX_DIR;
 //   **只改总表**：逐条 <id>.json sidecar 与 json/profile/ 保持原格式不动（它们按单文件被单独服务，
 //   改格式没有收益、反而增加对外契约风险）。
 const jsonlStore = require("./jsonl-store");
+// 2026-10-18：**总表**存储层（SQLite 优先、JSONL/JSON 回落），与 jsonl-store 同签名 ⇒ 下面读写点不用分叉。
+//   只作用于总表 iwara-index；逐条 <id>.json sidecar 与 json/profile/ 仍按原格式直接写文件，不经此层。
+const indexStore = require("./index-store");
 const CATALOG_BASE = CATALOG_NAME.replace(/\.json$/, ""); // "iwara-index"（不带后缀的基路径）
 
 function sidecarKey(id) {
@@ -145,8 +148,8 @@ function migrateCatalogToJsonl() {
 
 /** 读某个根目录下的总表（双读：.jsonl 优先，回落旧 .json）→ 普通对象 { [id]: entry } */
 function readCatalogAt(root) {
-  const rec = jsonlStore.readIndex(path.join(root, CATALOG_BASE));
-  if (rec.format === "jsonl") {
+  const rec = indexStore.readIndex(path.join(root, CATALOG_BASE));
+  if (rec.format === "jsonl" || rec.format === "sqlite") {
     // 必须转成**普通对象**返回（不能直接返回 Map）：loadCatalogMap 用 Object.assign 合并多个根，
     //   而 Map 的条目不是自有可枚举属性，Object.assign 只会复制出一个空对象（会导致读总表得到 {}）。
     const out = {};
@@ -426,7 +429,7 @@ function saveCatalogMap(root, map) {
     records.push({ t: "video", k: String(id), v: e });
   }
   migrateIndexDir();
-  const w = jsonlStore.writeIndexAtomic(serverCatalogBase(), { schema: 2 }, records);
+  const w = indexStore.writeIndexAtomic(serverCatalogBase(), { schema: 2 }, records);
   return w.ok;
 }
 
