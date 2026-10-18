@@ -1,14 +1,15 @@
 // ============================================================
 // index-store.js —— 索引存储层：SQLite 优先，JSONL / JSON 回落（2026-10-18 新增，模板下发件）
 //
+// 用途：给「索引换 SQLite」这条路留一个可复跑的落点 —— **但实测结论是默认不用它**。
+//   索引负载 = 「大而整份写 + 启动全量载入」⇒ 换库后启动慢 1.6–2×、写入打平、体积大 17–28%，
+//   详见 sqliteEnabled() 上的实测数字与根因。（任务列表那种「小而频繁写」才适合换库。）
+//   默认走 JSONL；要启用 SQLite 设 GBMD_INDEX_BACKEND=sqlite。
+//
 // 定位：**drop-in 替代 jsonl-store 的两个入口**，签名与返回结构完全一致：
 //   readIndex(fileBase)                  → { format, file, meta, records, badLines, json, bytes }
 //   writeIndexAtomic(fileBase, meta, records) → { ok, file }
-// 调用方（hash-index.js / video-index.js）无需感知底层是库还是文件。
-//
-// 为什么值得换：索引按「一游戏一文件」存放，增量收尾要把**整个游戏文件**重写一遍
-//   （最大单文件 21.7MB / 71,750 条，实测单条增删 ≈391ms，收尾期写盘 121MB/s）。
-//   换成库后只 UPSERT 变化的行。
+//   调用方（hash-index.js / video-index.js）无需感知底层是库还是文件。
 //
 // 表结构（每行存该条记录的值 JSON，**保持与 jsonl 逐字段等价**，不做字段拆解）：
 //   idx_meta(base TEXT PRIMARY KEY, v TEXT)                              每「基」的元信息
@@ -55,6 +56,23 @@ function probe() {
 
 function isAvailable() {
   return probe().ok;
+}
+
+/**
+ * 后端开关：**默认 JSONL 优先**，SQLite 只作可选后端（设 GBMD_INDEX_BACKEND=sqlite 才启用）。
+ *
+ * 为什么默认关掉（2026-10-18 实测结论，别再用"行级写一定更快"的直觉推翻它）：
+ *   同一份数据、同一台机器、双臂对比（scripts/bench-index-store.cjs 可复跑）：
+ *     · 启动加载   JSONL 673ms vs SQLite 1.09s（24.9 万条）／2.37s vs 4.71s（75 万条）⇒ **慢 1.6–2×**
+ *     · 单游戏增量写 快 1.14–1.22×（本质打平：成本在序列化，不在文件写）
+ *     · 全库增量写   反而慢 3–8%；落盘体积大 17–28%（还不算 WAL 文件）
+ *   根因：调用方每次传的是**全量 records** ⇒ `mapToRecords + JSON.stringify` 两份后端都要付；
+ *   JSONL 的「写整个文件」落到页缓存近乎免费，SQLite 省下的 I/O 抵不过「行 → 对象」的反序列化开销。
+ *   ⇒ 索引这种「大而整份写 + 启动全量载入」的负载不适合换库；
+ *     任务列表那种「小而频繁写 + 载入可忽略」的负载才适合（那里实测 4.5×）。
+ */
+function sqliteEnabled() {
+  return String(process.env.GBMD_INDEX_BACKEND || "").toLowerCase() === "sqlite" && probe().ok;
 }
 
 /** 索引目录 → 库文件路径 */
@@ -136,42 +154,52 @@ function treeCacheOf(stem, s) {
   return tree;
 }
 
+/** 从库读一个 base（库里没这个 base 的行 → null） */
+function readIndexFromDb(fileBase) {
+  if (!probe().ok) return null;
+  try {
+    const stem = path.basename(fileBase);
+    const s = openDb(dbPathOf(path.dirname(fileBase)));
+    const rows = s.rowsOf.all(stem);
+    if (!rows.length) return null;
+    if (!treeCache.has(stem)) {
+      const t = new Map();
+      for (const r of rows) {
+        if (!t.has(r.sec)) t.set(r.sec, new Map());
+        t.get(r.sec).set(r.k, r.v);
+      }
+      treeCache.set(stem, t);
+    }
+    const mv = s.getMeta.get(stem);
+    let meta = {};
+    try { meta = mv ? JSON.parse(mv.v) : {}; } catch (_) { meta = {}; }
+    return {
+      format: "sqlite",
+      file: s.dbPath,
+      meta,
+      records: rows.map((r) => ({ t: r.sec, k: r.k, v: JSON.parse(r.v) })),
+      badLines: 0,
+      json: null,
+      bytes: 0
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * 读一个「基」（游戏 / 总表）的索引。
- *   库里有这个 base 的行 ⇒ 用库；否则回落 jsonlStore（.jsonl 优先、旧 .json 次之）。
- *   返回结构与 jsonl-store 完全一致，调用方不用分叉。
+ *   顺序：显式启用 SQLite ⇒ 先读库；否则 **文件优先**（.jsonl → 旧 .json）；
+ *   文件不存在（迁移后归档过）才回头试库。返回结构与 jsonl-store 完全一致。
  */
 function readIndex(fileBase) {
-  if (probe().ok) {
-    try {
-      const stem = path.basename(fileBase);
-      const s = openDb(dbPathOf(path.dirname(fileBase)));
-      const rows = s.rowsOf.all(stem);
-      if (rows.length) {
-        if (!treeCache.has(stem)) {
-          const t = new Map();
-          for (const r of rows) {
-            if (!t.has(r.sec)) t.set(r.sec, new Map());
-            t.get(r.sec).set(r.k, r.v);
-          }
-          treeCache.set(stem, t);
-        }
-        const mv = s.getMeta.get(stem);
-        let meta = {};
-        try { meta = mv ? JSON.parse(mv.v) : {}; } catch (_) { meta = {}; }
-        return {
-          format: "sqlite",
-          file: s.dbPath,
-          meta,
-          records: rows.map((r) => ({ t: r.sec, k: r.k, v: JSON.parse(r.v) })),
-          badLines: 0,
-          json: null,
-          bytes: 0
-        };
-      }
-    } catch (_) { /* 读库失败 ⇒ 回落文件 */ }
+  if (sqliteEnabled()) {
+    const fromDb = readIndexFromDb(fileBase);
+    if (fromDb) return fromDb;
   }
-  return jsonlStore.readIndex(fileBase);
+  const fromFile = jsonlStore.readIndex(fileBase);
+  if (fromFile.format !== "none") return fromFile;
+  return readIndexFromDb(fileBase) || fromFile;
 }
 
 /**
@@ -180,7 +208,8 @@ function readIndex(fileBase) {
  * @returns {{ok:boolean, file?:string, inserted?:number, deleted?:number, fallback?:boolean, error?:string}}
  */
 function writeIndexAtomic(fileBase, meta, records) {
-  if (!probe().ok) return jsonlStore.writeIndexAtomic(fileBase, meta, records);
+  // 默认走 JSONL（见 sqliteEnabled 上的实测结论）；显式开启且库可用才走行级增量写
+  if (!sqliteEnabled()) return jsonlStore.writeIndexAtomic(fileBase, meta, records);
   try {
     const stem = path.basename(fileBase);
     const s = openDb(dbPathOf(path.dirname(fileBase)));
@@ -231,22 +260,23 @@ function writeIndexAtomic(fileBase, meta, records) {
  *   库里有数据 ⇒ 用库的 base 列表；否则扫目录里的 .jsonl / .json 文件名。
  *   load() 用它决定要加载哪些游戏，避免库存在时还去读文件。
  */
+/**
+ * 列出索引里所有「基」（不含后缀）。
+ *   默认以**目录里的文件**为准（JSONL 优先）；目录里一个索引文件都没有时，才用库的 base 列表。
+ */
 function listBases(indexDir) {
+  try {
+    const files = fs.readdirSync(indexDir).filter((f) => f.endsWith(".jsonl") || f.endsWith(".json"));
+    if (files.length) return files.map((f) => f.replace(/\.jsonl?$/, "")).sort();
+  } catch (_) { /* 目录读不到 ⇒ 试库 */ }
   if (probe().ok && fs.existsSync(dbPathOf(indexDir))) {
     try {
       const s = openDb(dbPathOf(indexDir));
       const rows = s.bases.all();
       if (rows.length) return rows.map((r) => r.base).sort();
-    } catch (_) { /* 回落扫目录 */ }
+    } catch (_) { /* 落空 ⇒ 返回空 */ }
   }
-  try {
-    return fs.readdirSync(indexDir)
-      .filter((f) => f.endsWith(".jsonl") || f.endsWith(".json"))
-      .map((f) => f.replace(/\.jsonl?$/, ""))
-      .sort();
-  } catch (_) {
-    return [];
-  }
+  return [];
 }
 
 /** 删除某个「基」的全部行（重建/清理用） */
