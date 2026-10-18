@@ -113,6 +113,7 @@
     "templates/_downloader/test/auto-update-backoff.test.cjs": "test/auto-update-backoff.test.cjs",
     "templates/_downloader/test/jsonl-store.test.cjs": "test/jsonl-store.test.cjs",
     "templates/tools/migrate-index-jsonl-to-sqlite.cjs": "scripts/migrate-index-jsonl-to-sqlite.cjs",
+    "templates/tools/bench-index-store.cjs": "scripts/bench-index-store.cjs",
     "templates/tools/migrate-json-index-to-jsonl.cjs": "scripts/migrate-json-index-to-jsonl.cjs"
   },
   "init": false
