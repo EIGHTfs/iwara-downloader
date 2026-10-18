@@ -30,6 +30,12 @@ const DB_NAME = "index.db";
 
 let probeCache = null; // { ok, lib, reason }
 let opened = null;     // { db, dbPath, stmt... }
+// 上一份快照缓存：base → sec → k → 值 JSON 文本。
+//   为什么必须有它（2026-10-18 实测教训）：差异比较若每次都回库读整份行
+//   （最大 base 71,842 行），读库开销**比直接重写 JSONL 文件还贵** ——
+//   实测 SQLite 408ms vs JSONL 173ms，反而慢 2.4×。缓存后只写变化的行才谈得上收益。
+//   值存的是**字符串**（不可变）⇒ 不存在"存了对象引用、就地改看不见"的陷阱。
+const treeCache = new Map();
 
 /** 运行期探测内置 node:sqlite（低版本 Node 加载本文件不报错） */
 function probe() {
@@ -115,6 +121,16 @@ function dbTreeOf(stmt, stem) {
   return tree;
 }
 
+/** 取某个 base 的上一份快照：优先用缓存，首次才回库读一遍 */
+function treeCacheOf(stem, s) {
+  let tree = treeCache.get(stem);
+  if (!tree) {
+    tree = dbTreeOf(s, stem);
+    treeCache.set(stem, tree);
+  }
+  return tree;
+}
+
 /**
  * 读一个「基」（游戏 / 总表）的索引。
  *   库里有这个 base 的行 ⇒ 用库；否则回落 jsonlStore（.jsonl 优先、旧 .json 次之）。
@@ -127,6 +143,14 @@ function readIndex(fileBase) {
       const s = openDb(dbPathOf(path.dirname(fileBase)));
       const rows = s.rowsOf.all(stem);
       if (rows.length) {
+        if (!treeCache.has(stem)) {
+          const t = new Map();
+          for (const r of rows) {
+            if (!t.has(r.sec)) t.set(r.sec, new Map());
+            t.get(r.sec).set(r.k, r.v);
+          }
+          treeCache.set(stem, t);
+        }
         const mv = s.getMeta.get(stem);
         let meta = {};
         try { meta = mv ? JSON.parse(mv.v) : {}; } catch (_) { meta = {}; }
@@ -156,7 +180,7 @@ function writeIndexAtomic(fileBase, meta, records) {
     const stem = path.basename(fileBase);
     const s = openDb(dbPathOf(path.dirname(fileBase)));
     const next = recordsToTree(records);
-    const prev = dbTreeOf(s, stem);
+    const prev = treeCacheOf(stem, s);
 
     let inserted = 0;
     let deleted = 0;
@@ -186,6 +210,7 @@ function writeIndexAtomic(fileBase, meta, records) {
       try { s.db.exec("ROLLBACK"); } catch (_) {}
       throw e;
     }
+    treeCache.set(stem, next); // 提交成功后才换缓存（失败时保持旧快照，下次比较仍然正确）
     return { ok: true, file: s.dbPath, inserted, deleted };
   } catch (e) {
     try {
@@ -227,6 +252,7 @@ function dropBase(fileBase) {
     const s = openDb(dbPathOf(path.dirname(fileBase)));
     s.delBase.run(stem);
     s.setMeta.run(stem, "{}");
+    treeCache.delete(stem);
     return true;
   } catch (_) {
     return false;
@@ -255,6 +281,7 @@ function stats(indexDir) {
 
 /** 关掉当前连接（测试/迁移收尾用，避免文件句柄残留） */
 function closeDb() {
+  treeCache.clear();
   if (!opened) return;
   try { opened.db.close(); } catch (_) {}
   opened = null;
