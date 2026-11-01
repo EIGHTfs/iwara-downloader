@@ -42,6 +42,11 @@
 
 ## 三、`assemble.json`：与 gbmd 同一问题，同样推荐方案 b
 
+> **现状已变（本节结论需降级看待）**：`server/config/brand.js` 现在是**四级兜底且恒返回对象**
+> —— 进程环境变量 `BRAND_*` → 项目根 `.env` → `assemble.json` 的 `brand` 段 → 内置默认。
+> 因此下面「读不到清单 ⇒ 返回 null ⇒ 页面残留 `@brand:logo@` 字面量」这条破相路径**已经不存在**；
+> 方案对比仍可作历史调研参考，但「运行时容忍缺失」这项工作已由品牌链覆盖。
+
 `server/config/brand.js` 与 gbmd **逐字相同**（md5 `a7cbb144`），同样读 `../assemble.json` 的 `brand` 段，
 同样在缺失时返回 `null` ⇒ 同样会让 `@brand:logo@` / `@brand:displayTitle@` 等**纯文本形态**的字面量显示在页面上。
 
