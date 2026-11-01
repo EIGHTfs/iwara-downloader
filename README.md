@@ -2,6 +2,15 @@
 
 > 从 [Iwara](https://www.iwara.tv) 搜索、解析并下载视频的零依赖 Node.js 服务：单进程、无 npm 依赖、自带网页界面与本地播放页。
 
+
+### npx 运行
+
+```bash
+npx iwara-downloader --port <端口>
+```
+
+数据目录默认 `~/.iwara-downloader`，可用 `--data-dir` 或环境变量 `DATA_DIR` 指定。
+
 ## 功能
 
 | 功能 | 做什么 | 入口 |
