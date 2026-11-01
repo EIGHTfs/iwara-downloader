@@ -178,7 +178,6 @@ curl -s http://<本机IP>:8643/api/task
 | [索引存储技术文档](docs/索引存储技术文档.MD) | 本地索引存储与维护 |
 | [常见问题与踩坑](docs/常见问题与踩坑.MD) | 问答与踩坑记录（UA、Cloudflare、链接过期、CDN 子域等） |
 | [设计决策记录](docs/设计决策记录.MD) | 关键问题的候选方案对比与取舍依据 |
-| [npx 发包准备](docs/npx-发包准备.md) | 打包白名单、品牌文件、README 链接改写、运行期风险 |
 | [待办](docs/待办.MD) | 未完成项（封面状态机） |
 | [CHANGELOG](docs/CHANGELOG.md) | 版本记录（按 git log 聚合） |
 
