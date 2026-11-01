@@ -1,78 +1,78 @@
-# npx 发包准备（iwara-downloader）
+# npx 发包准备
 
-> 只调研、未改代码。**通用部分（入口 / 零依赖 / server 自足 / 工具探测 / 缺口清单①～⑦ / assemble 方案对比与推荐）与
-> `gamebanana-mods-downloader/docs/npx-发包准备.md` 完全一致，本文只写差异。** 两份文档的相同段落请对照那份。
+把项目做成「`npx <包名>` 直接跑」需要解决的几件事：入口、零依赖边界、打包白名单、配置与品牌文件、README 链接、运行期风险。本文记录实测结论与待办，未改动代码。
 
-## 一、与 gbmd 的差异（实测）
+## 一、现状
 
-| 项 | iwara 的实际情况 |
-|---|---|
-| 端口 | `server/config.js:28` 默认 **8643**（gbmd 是 8642） |
-| 配置文件 | 有 **`config.example.json`**（不是 `config.json`）⇒ 首次运行要生成 `config.json` 到数据目录，不能写进包 |
-| `server/` 规模 | **117 文件 / 1.1 MB**（gbmd 116 / 1 MB） |
-| 入口与装配 | `boot.cjs` / `lib/cjs-bootstrap.cjs` / `update/auto-update.js` / `tool/tool-detect.js` 与 gbmd **逐字相同**（md5 一致） |
-| `json/` | **空目录**（0 文件）⇒ 无需进包 |
-| `mapping/` | **不存在**（gbmd 有 6 文件 84 KB） |
-| `crx/` | 不存在 |
-| 顶层 `tool/` | 3 文件 **12 KB**：`README.md` + `ffmpeg`(4 KB) + `ffprobe`(4 KB) —— **都是 wrapper 脚本，不是二进制** |
-| 运行时工具依赖 | `server/lib/thumb-cache.cjs:84-94` 用 `detectTool("ffmpeg", {toolDirs:[<root>/tool]})` 找 ffmpeg；**探测顺序 环境变量 → 项目 tool/ → 系统 PATH**，找不到降级（缩略图功能不可用但不崩） |
-| **README 相对链接** | 图片 7 / 链接 10 / 其中**相对路径 15 个** ← **三个项目里最多**，npm 页面上会大量裂图/404，④的工作量比另两个大 |
-| `test/` | 13 文件 308 KB |
+| 项 | 实测 |
+| --- | --- |
+| 依赖 | 无 `package.json`，零 npm 依赖 |
+| 入口 | `server/boot.cjs`（零依赖启动器，强制本项目 `.js` 按 CommonJS 加载） |
+| 代码规模 | `server/` 119 文件 / 约 1.1 MB（含前端静态资源） |
+| 随包工具 | `tool/` 3 文件：`README.md`、`ffmpeg`（515 B）、`ffprobe`（424 B）——都是包装脚本，不是二进制 |
+| 配置文件 | 有 `config.example.json`；真实 `config.json` 不入库 |
+| 数据目录 | `json/` 运行期生成，首次运行为空 |
+| Node 版本要求 | 内置 SQLite 探测需 Node ≥ 22.5；低版本自动回退到 JSONL 存储 |
+| README 链接 | 20 个链接，其中 **12 个是相对路径**（指向 `docs/`） |
 
-## 二、`files` 白名单（逐条）
+## 二、`files` 白名单
 
 **进包**：
 
-| 路径 | 文件数 | 大小 | 为什么必须进 |
-|---|---|---|---|
-| `server/**` | 117 | 1.1 MB | 全部运行时代码（含 `public/` 前端、`tool/tool-detect.js` 工具探测、`update/` 自更新、`auth/`） |
-| `README.md` | 1 | 24 KB | npm 页面展示 |
-| `start.sh` / `start-*.sh` / `start-windows*.bat` | 6 | ~20 KB | 源码运行用；可忽略体积 |
-| `tool/README.md` + `tool/ffmpeg` + `tool/ffprobe` | 3 | **12 KB** | **是 wrapper 脚本（各 4 KB），不是二进制** ⇒ 体积可忽略；`tool-detect.js` 会优先看它们。**注意**：它们的可执行位（`X_OK`）在 npm 安装后可能丢失，`tool-detect.js` 已有 `X_OK` 校验 ⇒ 丢位时自动降级到系统 ffmpeg（不会崩） |
+| 路径 | 文件数 | 说明 |
+| --- | --- | --- |
+| `server/**` | 119 | 全部运行时代码，含前端静态资源、工具探测、自更新 |
+| `README.md` | 1 | npm 页面展示 |
+| `start.sh` / `start-macos.sh` / `start-windows*.bat` | 若干 | 源码运行用，体积可忽略 |
+| `tool/README.md` + `tool/ffmpeg` + `tool/ffprobe` | 3 | 包装脚本，共约 2 KB；工具探测优先使用它们 |
 
 **不进包**：
 
-| 路径 | 文件数 | 大小 | 为什么 |
-|---|---|---|---|
-| **`assemble.json`** | 1 | 12 KB | 用户硬要求；**但 iwara 与 gbmd 一样有 brand 依赖** ⇒ **需要方案 b**（见下） |
-| `test/**` | 13 | 308 KB | 测试，运行不需要 |
-| `docs/**` | 13 | 752 KB | 设计文档 |
-| `scripts/**` | 17 | 232 KB | 开发期工具（bench / migrate / verify / userscript） |
-| `config.example.json` 之外的用户 `config.json` | — | — | 用户配置，绝不能进包 |
+| 路径 | 原因 |
+| --- | --- |
+| `test/**` | 测试代码，运行不需要 |
+| `docs/**` | 设计文档 |
+| `scripts/**` | 开发期工具（迁移、校验、油猴脚本构建） |
+| `assemble.json` | 构建期清单，运行期只读品牌段（见下节） |
+| 用户 `config.json` | 用户配置，绝不能进包 |
 
-## 三、`assemble.json`：与 gbmd 同一问题，同样推荐方案 b
+## 三、配置与品牌文件
 
-> **现状已变（本节结论需降级看待）**：`server/config/brand.js` 现在是**四级兜底且恒返回对象**
-> —— 进程环境变量 `BRAND_*` → 项目根 `.env` → `assemble.json` 的 `brand` 段 → 内置默认。
-> 因此下面「读不到清单 ⇒ 返回 null ⇒ 页面残留 `@brand:logo@` 字面量」这条破相路径**已经不存在**；
-> 方案对比仍可作历史调研参考，但「运行时容忍缺失」这项工作已由品牌链覆盖。
+运行期需要品牌信息（页面标题、logo、图标）。当前实现按四级回退取值：
 
-`server/config/brand.js` 与 gbmd **逐字相同**（md5 `a7cbb144`），同样读 `../assemble.json` 的 `brand` 段，
-同样在缺失时返回 `null` ⇒ 同样会让 `@brand:logo@` / `@brand:displayTitle@` 等**纯文本形态**的字面量显示在页面上。
+1. 进程环境变量 `BRAND_*`
+2. 项目根 `.env`
+3. `assemble.json` 的 `brand` 段
+4. 内置默认值
 
-`brand` 段实测内容（`assemble.json`）：
+由于恒有兜底，`assemble.json` 缺失不会导致页面出现未替换的占位符。但 npm 包不带 `assemble.json`，品牌信息会走内置默认，与源码运行的展示可能不同。
 
-```json
-{ "title": "iwara-downloader", "logo": "iwara-logo.png", "icon": "favicon.png",
-  "displayTitle": "Iwara<br>Video<br>Downloader" }
+**建议做法**：发布前由构建脚本生成 `brand.json`（内容与 `assemble.json` 的 `brand` 段一致），运行时优先读它、缺失再回退；这样包内自带品牌信息，也不依赖构建期清单。
+
+## 四、README 链接
+
+npm 页面上相对路径全部失效（图片裂图、文档链接 404）。12 个相对链接需要改写为完整地址：
+
+```
+https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>
 ```
 
-⇒ 方案 b（`prepublishOnly` 生成 `brand.json`，`brand.js` 优先读它、缺失回落 `assemble.json`）**同样适用**，
-且因为 `brand.js` 与 gbmd 逐字相同，**这份改动可以按 md5 原样复制到 gbmd**（省一半工作）。
+改写后必须实际打开 npm 页面确认渲染，不能只靠统计数量。
 
-## 四、README 链接是这份文档里最重的活
+## 五、运行期风险
 
-相对路径 **15 个**（gbmd 1、gallery 1）。npm 页面上这些全部 404/裂图。
-建议批量改写为 `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>`，
-并在发布前用 `npm pack --dry-run` + 直接打开 npm 页面各看一次（**不能只靠 grep 数**，要真的渲染）。
+| 风险 | 说明 | 缓解 |
+| --- | --- | --- |
+| 包装脚本执行位丢失 | npm 安装后 `tool/ffmpeg` 可能没有执行位，工具探测会校验可执行性并降级到系统 ffmpeg | 保留校验；目标机无 ffmpeg 时缩略图不可用，应在日志中明确提示 |
+| 数据目录 | 首次运行需要可写的数据目录（配置、缓存、任务） | 启动时创建并在日志中打印实际路径 |
+| 端口冲突 | 默认 8643，可能被占用 | 启动失败给出明确提示，允许通过配置改端口 |
+| Node 版本 | 内置 SQLite 需 ≥ 22.5，低版本回退 JSONL | 启动时探测并记录实际使用的存储后端 |
+| 升级丢数据 | 用户数据与代码同目录时，覆盖安装可能丢失 | 数据目录与代码目录分离；升级前备份清单内文件 |
 
-## 五、共享与风险
+## 六、发布顺序
 
-- **共享**：`boot.cjs`/`cjs-bootstrap.cjs`/`brand.js`/`update/auto-update.js`/`tool/tool-detect.js` 与 gbmd **逐字相同** ⇒ 可按 md5 批量同步；`app.js` 已分化，各自改。
-- **iwara 特有风险**：**ffmpeg wrapper 的可执行位在 npm 安装后可能丢失**（npm 保留 755 但不保证），`tool-detect.js` 的 `X_OK` 校验会降级到系统 ffmpeg —— 若目标机器也没有 ffmpeg，**缩略图功能静默不可用**。建议首次运行时把"ffmpeg 未找到 → 缩略图不可用"写进日志（而不是完全静默）。
-- 其余风险（数据目录、端口冲突、`node:sqlite` 版本要求、升级丢数据）见 gbmd 文档 §六，同样适用。
-
-## 六、发布顺序建议
-
-**排在 gbmd 之后**（gbmd 与它逐字相同的文件更多，先改 gbmd 可顺带验证批量同步）；
-两处额外工作量：README 15 个链接、ffmpeg 降级的日志提示。
+1. 补齐 `package.json`（`bin`、`files`、`engines`），确认 `npx <包名>` 能启动。
+2. 处理品牌文件（见第三节）。
+3. 改写 README 的 12 个相对链接。
+4. 用 `npm pack --dry-run` 检查包内容，再实际安装验证一次启动与页面渲染。
+5. 发布后从干净的临时目录 `npx` 跑一次，确认不依赖仓库内其它文件。
