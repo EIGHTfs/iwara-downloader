@@ -1,6 +1,6 @@
 {
   "name": "iwara-downloader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "浏览与下载 iwara.tv 上的视频与图集：本地索引、任务队列、断点续传，零 npm 依赖",
   "bin": {
     "iwara-downloader": "bin/iwara-downloader.js"

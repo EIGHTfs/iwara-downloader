@@ -86,19 +86,19 @@ PID 文件为项目根 `<项目名>.pid`（不入库）；日志超过 10MB 在 
 
 | 登录 | 下载 |
 | --- | --- |
-| ![登录](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/01-login.jpg) | ![下载](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/02-download.jpg) |
+| ![登录](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/01-login.jpg) | ![下载](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/02-download.jpg) |
 
 | 下载进度 | 搜索 |
 | --- | --- |
-| ![下载进度](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/03-progress.jpg) | ![搜索](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/04-search.jpg) |
-| ![设置](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/05-settings.jpg) | ![本地播放](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/06-play.jpg) |
+| ![下载进度](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/03-progress.jpg) | ![搜索](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/04-search.jpg) |
+| ![设置](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/05-settings.jpg) | ![本地播放](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/06-play.jpg) |
 
 | 设置 | 本地播放 |
 | --- | --- |
 
 | 油猴脚本 |
 | --- |
-| ![油猴脚本](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/07-userscript.jpg) |
+| ![油猴脚本](https://raw.githubusercontent.com/EIGHTfs/iwara-downloader/main/docs/screenshots/07-userscript.jpg) |
 
 ### 凭证
 
