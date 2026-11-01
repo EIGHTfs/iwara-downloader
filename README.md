@@ -91,10 +91,10 @@ PID 文件为项目根 `<项目名>.pid`（不入库）；日志超过 10MB 在 
 | 下载进度 | 搜索 |
 | --- | --- |
 | ![下载进度](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/03-progress.jpg) | ![搜索](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/04-search.jpg) |
+| ![设置](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/05-settings.jpg) | ![本地播放](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/06-play.jpg) |
 
 | 设置 | 本地播放 |
 | --- | --- |
-| ![设置](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/05-settings.jpg) | ![本地播放](https://cdn.jsdelivr.net/gh/EIGHTfs/iwara-downloader@main/docs/screenshots/06-play.jpg) |
 
 | 油猴脚本 |
 | --- |
