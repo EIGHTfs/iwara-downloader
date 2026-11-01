@@ -1,5 +1,5 @@
 // ============================================================
-// 自动更新（框架层 · 通用）：零依赖文件监控 + 优雅重启 + GitHub 拉取
+// 自动更新（通用实现）：零依赖文件监控 + 优雅重启 + GitHub 拉取
 //
 // 用户场景：开发机改完代码 → 推送 GitHub → 服务端自动拉取 + 重启
 //   不需要每次手动同步代码重启。
@@ -103,7 +103,7 @@ function isWinCompat() {
 }
 
 /**
- * 创建 auto-update 实例（框架层统一入口）。
+ * 创建 auto-update 实例（通用入口）。
  * @param {object} opts
  * @param {string} opts.projectName     项目显示名（User-Agent / 日志前缀，如 "gamebanana-mods-downloader"）
  * @param {string} opts.defaultRepo     缺省 GitHub 仓库（如 "owner/repo"，config 可覆盖）

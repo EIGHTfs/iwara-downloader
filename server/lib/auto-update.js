@@ -1,10 +1,7 @@
 // ============================================================
-// 自动更新（通用项目包装，最通用层）：从框架引入工厂，项目参数从同目录
-// auto-update-params.json 读取（独立参数文件，不占 config.json 运行态配置）。
-// 框架实现见 templates/js/update/auto-update.js（createAutoUpdate），本文件不重复框架代码。
-// 项目参数文件：<项目根>/server/lib/auto-update-params.json —— 由项目侧维护，
-//   与模板无关（模板只下发本通用包装，参数文件随项目自定义）。
-// 下发：assemble.json 把本文件 → 项目 server/lib/auto-update.js。
+// 自动更新（通用包装层）：具体实现在 server/update/auto-update.js，
+// 本文件只负责把项目参数接上，不重复实现更新逻辑。
+// 项目参数从同目录的 auto-update-params.json 读取（独立文件，不占用 config.json）。
 // ============================================================
 "use strict";
 
