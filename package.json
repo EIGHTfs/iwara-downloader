@@ -1,0 +1,41 @@
+{
+  "name": "iwara-downloader",
+  "version": "1.0.0",
+  "description": "浏览与下载 iwara.tv 上的视频与图集：本地索引、任务队列、断点续传，零 npm 依赖",
+  "bin": {
+    "iwara-downloader": "bin/iwara-downloader.js"
+  },
+  "files": [
+    "bin/",
+    "server/",
+    "start.sh",
+    "README.md",
+    "LICENSE",
+    "!server/config.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/iwara-downloader.js",
+    "prepublishOnly": "node scripts/prepublish-guard.js",
+    "verify:pack": "bash scripts/verify-pack.sh"
+  },
+  "author": "EIGHTfs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/EIGHTfs/iwara-downloader.git"
+  },
+  "homepage": "https://github.com/EIGHTfs/iwara-downloader#readme",
+  "bugs": {
+    "url": "https://github.com/EIGHTfs/iwara-downloader/issues"
+  },
+  "keywords": [
+    "iwara",
+    "downloader",
+    "video",
+    "nas",
+    "self-hosted"
+  ]
+}

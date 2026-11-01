@@ -15,9 +15,21 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="$(basename "$ROOT")"
 SERVER_DIR="$ROOT/server"
-PID_FILE="$ROOT/${PROJECT_NAME}.pid"
-LOG_FILE="$SERVER_DIR/server.log"
-CONFIG_FILE="$SERVER_DIR/config.json"
+# ---------- 数据根：写路径一律不许落在包目录里 ----------
+# 为什么不能直接 PID_FILE="$ROOT/xxx.pid"：装成 npm 包后 ROOT=<...>/node_modules/<pkg>，
+#   PID/日志/配置全落进包目录 ⇒ 升级即丢（npm 整体替换该目录），且包目录可能只读。
+# 优先级：DATA_DIR（服务端 server/store/json-dir.js 认这个）→ 包内运行落 ~/.<app> → 项目根。
+if [ -n "${DATA_DIR:-}" ]; then
+  DATA_ROOT="$DATA_DIR"
+elif [[ "$ROOT" == */node_modules/* ]]; then
+  DATA_ROOT="$HOME/.iwara-downloader"
+  echo "提示：检测到以 npm 包方式运行，数据根自动落到 $DATA_ROOT（可用 DATA_DIR 覆盖）" >&2
+else
+  DATA_ROOT="$ROOT"
+fi
+PID_FILE="$DATA_ROOT/${PROJECT_NAME}.pid"
+LOG_FILE="$DATA_ROOT/logs/server.log"
+CONFIG_FILE="$DATA_ROOT/server/config.json"
 # 默认端口：优先读 server/config.schema.json 的 port.default —— 各项目端口不同
 #   （gallery 8081、gbmd/iwara 8642），通用脚本不该写死某一个项目的端口。
 #   读不到（未声明/无 schema）才回落到 8642。
@@ -298,8 +310,12 @@ start_server() {
   fi
   rm -f "$PID_FILE"
   mkdir -p "$SERVER_DIR"
+  # 数据目录也要在：日志写 <数据根>/logs、配置写 <数据根>/server
+  mkdir -p "$DATA_ROOT/logs" "$DATA_ROOT/server"
   rotate_log
   cd "$SERVER_DIR" || exit 1
+  # 让服务端与脚本用同一个数据根
+  export DATA_DIR="$DATA_ROOT/server"
   local cmd=("$NODE_BIN" boot.cjs)
   if [ -n "$port_opt" ]; then
     export PORT="$port_opt"
@@ -486,7 +502,7 @@ case "$CMD" in
     sleep 1
     start_server "$@"
     ;;
-  status)  status_server ;;
+  status)  status_server "$@" ;;   # 传参：status 也要能接 --port（否则换端口后查不到自己的实例）
   *)
     err "❌ 未知命令: $CMD"
     echo "可用命令: start, stop, restart, status"

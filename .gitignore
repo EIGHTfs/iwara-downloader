@@ -47,7 +47,8 @@ tool/ffprobe-bin
 tool/ffmpeg-lib/
 
 # 零依赖：不写 package.json / lock
-package.json
+# 零依赖项目本不需要依赖清单；但发布到 npm 必须有 package.json（bin/files/engines 等元信息），
+# 故只忽略 lock 文件，package.json 入库（不含 dependencies 字段，实现仍零依赖）。
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
