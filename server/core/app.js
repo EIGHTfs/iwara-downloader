@@ -252,23 +252,10 @@ function createServer(opts) {
     ? config.get("port")
     : (typeof config.readConfig === "function" ? (config.readConfig() || {}).port : null);
   // 端口优先级：环境变量 PORT（bin/start.sh 注入）> 调用方传参 > 配置文件/默认值。
-  //   原先把 cfgPort 放在 PORT 之前，配置文件里有默认 port 时 --port 与 PORT 永远被覆盖
-  //   （实测 npx --port 8682 仍监听配置里的端口）。命令行显式端口必须能盖过配置默认值。
+  //   原先把 cfgPort 放在 PORT 之前：配置文件里有默认 port 时，--port 与 PORT 永远被覆盖
+  //   （实测 npx --port 8682 仍监听配置里的 8642）。命令行显式端口必须能盖过配置文件默认值。
   const envPort = Number(process.env.PORT || 0);
   const port = (Number.isInteger(envPort) && envPort > 0) ? envPort : (portOpt || cfgPort || DEFAULT_PORT);
-
-  // 监听失败要说人话：不处理的话 EADDRINUSE 会变成未捕获异常，
-  //   而本项目 boot 层有「uncaughtException 只记日志、进程继续」的兜底 →
-  //   "端口被占用但进程还活着、根本没在监听"，比崩了更难查。
-  server.on("error", (e) => {
-    if (e && e.code === "EADDRINUSE") {
-      console.error(`端口 ${port} 已被占用：用 --port <其他端口> 换一个，或先停掉占用该端口的进程`);
-      console.error(`排查：lsof -i :${port}   或   netstat -tlnp | grep :${port}`);
-      process.exit(2);
-    }
-    console.error(`服务启动失败：${(e && e.message) || e}`);
-    process.exit(2);
-  });
 
   server.listen(port, () => {
       // 不传 host 时 Node 监听 ::/0.0.0.0（局域网可访问）。
@@ -279,6 +266,19 @@ function createServer(opts) {
       //   实测 v20.19.5 / v14.21.1 都没有），排障时要先能一眼看出跑在哪个版本上。
       console.log("运行环境: Node " + process.version);
     if (onReady) onReady(port);
+  });
+
+  // 启动失败的「人话」：不把原始 EADDRINUSE 堆栈丢给用户。
+  //   为什么：端口占用是首次运行最常见的失败（8080/8081/8642 都常被占），
+  //   堆栈只说「address already in use」，不说下一步该做什么。
+  //   退出码 2 专指「启动期失败」，与业务异常的 1 区分，脚本/监控可据此判定。
+  server.on("error", (e) => {
+    if (e && e.code === "EADDRINUSE") {
+      console.error("端口 " + port + " 已被占用：用 --port <其他端口> 换一个，或先停掉占用该端口的进程");
+      process.exit(2);
+    }
+    console.error("服务启动失败：" + (e && e.message ? e.message : String(e)));
+    process.exit(2);
   });
 
   return server;

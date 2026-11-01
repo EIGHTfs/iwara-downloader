@@ -15,20 +15,29 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_NAME="$(basename "$ROOT")"
 SERVER_DIR="$ROOT/server"
+
 # ---------- 数据根：写路径一律不许落在包目录里 ----------
 # 为什么不能直接 PID_FILE="$ROOT/xxx.pid"：装成 npm 包后 ROOT=<...>/node_modules/<pkg>，
 #   PID/日志/配置全落进包目录 ⇒ 升级即丢（npm 整体替换该目录），且包目录可能只读。
-# 优先级：DATA_DIR（服务端 server/store/json-dir.js 认这个）→ 包内运行落 ~/.<app> → 项目根。
-if [ -n "${DATA_DIR:-}" ]; then
+# 回落顺序（通用写法，不写死任何项目名）：
+#   ① 项目专属变量 <项目名大写>_DATA_DIR（如 LUMIGATHER_DATA_DIR）—— 以「数据根」为语义的项目
+#   ② DATA_DIR                         —— 框架约定（其语义为 server 目录，见下方 export）
+#   ③ 脚本位于 */node_modules/* 时落 ~/.<项目名>（npm 包运行）
+#   ④ 否则落项目根（从 git 仓库直接跑，行为与改造前一致）
+APP_ENV_NAME="$(printf '%s' "$PROJECT_NAME" | tr '[:lower:]-' '[:upper:]_')_DATA_DIR"
+if [ -n "${!APP_ENV_NAME:-}" ]; then
+  DATA_ROOT="${!APP_ENV_NAME}"
+elif [ -n "${DATA_DIR:-}" ]; then
   DATA_ROOT="$DATA_DIR"
 elif [[ "$ROOT" == */node_modules/* ]]; then
-  DATA_ROOT="$HOME/.iwara-downloader"
-  echo "提示：检测到以 npm 包方式运行，数据根自动落到 $DATA_ROOT（可用 DATA_DIR 覆盖）" >&2
+  DATA_ROOT="$HOME/.${PROJECT_NAME}"
+  echo "提示：检测到以 npm 包方式运行，数据根自动落到 $DATA_ROOT（可用 $APP_ENV_NAME 或 DATA_DIR 覆盖）" >&2
 else
   DATA_ROOT="$ROOT"
 fi
 PID_FILE="$DATA_ROOT/${PROJECT_NAME}.pid"
 LOG_FILE="$DATA_ROOT/logs/server.log"
+# 与服务端同源：config.json 在 <数据根>/server/ 下（见 server/lib/config.js）
 CONFIG_FILE="$DATA_ROOT/server/config.json"
 # 默认端口：优先读 server/config.schema.json 的 port.default —— 各项目端口不同
 #   （gallery 8081、gbmd/iwara 8642），通用脚本不该写死某一个项目的端口。
@@ -309,13 +318,21 @@ start_server() {
     ok "✓ 端口 $port 已释放"
   fi
   rm -f "$PID_FILE"
-  mkdir -p "$SERVER_DIR"
-  # 数据目录也要在：日志写 <数据根>/logs、配置写 <数据根>/server
-  mkdir -p "$DATA_ROOT/logs" "$DATA_ROOT/server"
+  # 代码目录 + 数据目录都要在：日志写 <数据根>/logs、配置写 <数据根>/server
+  mkdir -p "$SERVER_DIR" "$DATA_ROOT/logs" "$DATA_ROOT/server"
+  # 让服务端与脚本用同一个数据根（否则脚本把 PID/日志写到 A、服务端把缓存写到 B）。
+  #   DATA_DIR 指向 **server 目录**：框架的 store/json-dir.js 以它为 server 根，
+  #   配置因此落 <数据根>/server/config.json、运行期 json 落 <数据根>/json。
+  #   若某个项目的数据根变量语义不同（如以「数据根」为语义的 <APP>_DATA_DIR），
+  #   装配到该项目时把这一行换成 export <APP>_DATA_DIR="$DATA_ROOT"，不要两行并存。
+  # 两个变量都导出，覆盖两类项目语义（都以同一个 DATA_ROOT 为源，不会有两套落点）：
+  #   框架项目：DATA_DIR 指向 <数据根>/server（store/json-dir.js 的语义）
+  #   以数据根为语义的项目：<项目名大写>_DATA_DIR 指向 <数据根>
+  export DATA_DIR="$DATA_ROOT/server"
+  export "${APP_ENV_NAME}=${DATA_ROOT}"
   rotate_log
   cd "$SERVER_DIR" || exit 1
-  # 让服务端与脚本用同一个数据根
-  export DATA_DIR="$DATA_ROOT/server"
+  # 让服务端与脚本用同一个数据根（否则脚本把 PID/日志写到 A、服务端把缓存写到 B）
   local cmd=("$NODE_BIN" boot.cjs)
   if [ -n "$port_opt" ]; then
     export PORT="$port_opt"
@@ -401,8 +418,17 @@ stop_server() {
 }
 
 status_server() {
+  # 与 start_server 用同一套参数解析：不认 --port 时，用非默认端口起的实例会被判成「未运行」
+  # （下面查监听与 /api/status 都用 port，而 port 默认取自配置里的端口）。
+  local port_opt=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --port) port_opt="${2:-}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
   local port
-  port="$(config_port)"
+  port="${port_opt:-$(config_port)}"
   echo "======== $PROJECT_NAME ========"
   echo "根目录: $ROOT"
   echo "PID文件: $PID_FILE$([ -f "$PID_FILE" ] && echo " (存在)" || echo " (无)")"
@@ -502,7 +528,7 @@ case "$CMD" in
     sleep 1
     start_server "$@"
     ;;
-  status)  status_server "$@" ;;   # 传参：status 也要能接 --port（否则换端口后查不到自己的实例）
+  status)  status_server "$@" ;;
   *)
     err "❌ 未知命令: $CMD"
     echo "可用命令: start, stop, restart, status"
